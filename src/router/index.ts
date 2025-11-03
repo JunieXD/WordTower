@@ -1,5 +1,6 @@
 import DefaultLayout from '@/layouts/DefaultLayout.vue'
 import HomeView from '@/views/HomeView.vue'
+import LoginView from '@/views/LoginView.vue'
 import { createRouter, createWebHistory } from 'vue-router'
 
 const router = createRouter({
@@ -8,16 +9,17 @@ const router = createRouter({
     {
       path: '/',
       component: DefaultLayout,
-      children: [{ path: '', component: HomeView }],
+      children: [
+        { path: '', redirect: { name: 'home' } },
+        { path: 'home', name: 'home', component: HomeView },
+        { path: 'library', name: 'library', component: () => import('@/views/LibraryView.vue') },
+        { path: 'profile', name: 'profile', component: () => import('@/views/ProfileView.vue') },
+      ],
     },
-    // {
-    //   path: '/about',
-    //   name: 'about',
-    //   // route level code-splitting
-    //   // this generates a separate chunk (About.[hash].js) for this route
-    //   // which is lazy-loaded when the route is visited.
-    //   component: () => import('../views/AboutView.vue'),
-    // },
+    {
+      path: '/login',
+      component: LoginView,
+    },
   ],
 })
 

@@ -1,19 +1,24 @@
+<script setup lang="ts">
+import FooterNav from '@/components/FooterNav.vue'
+import AppSidebar from '@/components/AppSidebar.vue'
+import { SidebarProvider } from '@/components/ui/sidebar'
+</script>
+
 <template>
-  <n-layout has-sider>
+  <div class="flex min-h-screen">
     <!-- 侧边栏：仅桌面端显示 -->
-    <n-layout-sider> sider </n-layout-sider>
-
-    <!-- 主布局（Header + Content + Footer） -->
-    <n-layout>
-      <n-layout-header> header </n-layout-header>
-
-      <n-layout-content>
-        <router-view />
-      </n-layout-content>
-
-      <n-layout-footer> footer </n-layout-footer>
-    </n-layout>
-  </n-layout>
+    <div class="hidden lg:block">
+      <SidebarProvider>
+        <AppSidebar />
+      </SidebarProvider>
+    </div>
+    <!-- 主区域 -->
+    <main class="flex flex-col flex-1">
+      <router-view class="flex-1" />
+      <!-- 底部导航栏：仅手机端显示 -->
+      <FooterNav class="block lg:hidden" />
+    </main>
+  </div>
 </template>
 
 <style scoped></style>
