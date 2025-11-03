@@ -17,19 +17,19 @@ const mode = ref<'login' | 'register'>('login')
 
 <template>
   <div class="flex items-center justify-center h-screen w-screen">
-    <Card class="min-w-[350px] max-w-[450px] w-2/3 min-h-[350px] max-h-[500px] h-1/2">
-      <CardHeader class="flex-2">
+    <Card class="flex flex-col min-w-[350px] max-w-[450px] w-2/3">
+      <CardHeader class="flex-none gap-5">
         <CardTitle class="flex justify-center">
           <Button
             :variant="mode === 'login' ? 'default' : 'outline'"
-            class="text-1xl mx-4"
+            class="text-1xl mx-4 cursor-pointer"
             @click="mode = 'login'"
           >
             登 录
           </Button>
           <Button
             :variant="mode === 'register' ? 'default' : 'outline'"
-            class="text-1xl mx-4"
+            class="text-1xl mx-4 cursor-pointer"
             @click="mode = 'register'"
           >
             注 册
@@ -39,7 +39,7 @@ const mode = ref<'login' | 'register'>('login')
           {{ mode === 'login' ? '请使用用户名和密码登录。' : '请填写信息完成注册。' }}
         </CardDescription>
       </CardHeader>
-      <CardContent class="flex-3">
+      <CardContent class="grow content-center">
         <form>
           <div class="flex flex-col space-y-4">
             <Label for="username">用户名</Label>
@@ -54,9 +54,9 @@ const mode = ref<'login' | 'register'>('login')
           </div>
         </form>
       </CardContent>
-      <CardFooter class="flex flex-1 justify-center">
-        <Button class="w-3/5 text-1xl">
-          {{ mode === 'login' ? '登&nbsp;&nbsp;&nbsp;录' : '注&nbsp;&nbsp;&nbsp;册' }}
+      <CardFooter class="flex flex-none justify-center">
+        <Button variant="outline" class="w-2/5 text-1xl cursor-pointer">
+          {{ mode === 'login' ? '登&nbsp;&nbsp;录' : '注&nbsp;&nbsp;册' }}
         </Button>
       </CardFooter>
     </Card>
