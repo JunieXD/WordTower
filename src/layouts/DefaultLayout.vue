@@ -13,8 +13,8 @@ import { SidebarProvider } from '@/components/ui/sidebar'
       </SidebarProvider>
     </div>
     <!-- 主区域 -->
-    <main class="flex flex-col flex-1">
-      <router-view class="flex-1" />
+    <main class="flex-col flex-1">
+      <router-view />
       <!-- 底部导航栏：仅手机端显示 -->
       <FooterNav class="block lg:hidden" />
     </main>

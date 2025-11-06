@@ -11,9 +11,19 @@ const router = createRouter({
       component: DefaultLayout,
       children: [
         { path: '', redirect: { name: 'home' } },
-        { path: 'home', name: 'home', component: HomeView },
-        { path: 'library', name: 'library', component: () => import('@/views/LibraryView.vue') },
-        { path: 'profile', name: 'profile', component: () => import('@/views/ProfileView.vue') },
+        { path: 'home', name: 'home', component: HomeView, meta: { requiresAuth: true } },
+        {
+          path: 'library',
+          name: 'library',
+          component: () => import('@/views/LibraryView.vue'),
+          meta: { requiresAuth: true },
+        },
+        {
+          path: 'profile',
+          name: 'profile',
+          component: () => import('@/views/ProfileView.vue'),
+          meta: { requiresAuth: true },
+        },
       ],
     },
     {
@@ -21,6 +31,23 @@ const router = createRouter({
       component: LoginView,
     },
   ],
+})
+
+function isAuthenticated() {
+  const auth_token = localStorage.getItem('auth_token')
+  return !!auth_token
+}
+
+router.beforeEach((to, from, next) => {
+  if (to.matched.some((record) => record.meta.requiresAuth)) {
+    if (!isAuthenticated()) {
+      next({ path: '/login', query: { redirect: to.fullPath } })
+    } else {
+      next()
+    }
+  } else {
+    next()
+  }
 })
 
 export default router

@@ -12,17 +12,17 @@ import {
 // Menu items.
 const items = [
   {
-    title: 'home',
+    title: '主页',
     url: 'home',
     icon: 'mdi:home-variant-outline',
   },
   {
-    title: 'library',
+    title: '词库',
     url: 'library',
     icon: 'mdi:bookshelf',
   },
   {
-    title: 'profile',
+    title: '我的',
     url: 'profile',
     icon: 'mdi:account',
   },
@@ -37,7 +37,11 @@ const items = [
           <SidebarMenu>
             <SidebarMenuItem v-for="item in items" :key="item.title">
               <RouterLink :to="'/' + item.url" custom v-slot="{ navigate }">
-                <SidebarMenuButton asChild class="my-1 h-10" @click="navigate">
+                <SidebarMenuButton
+                  asChild
+                  class="my-1 h-10 cursor-pointer select-none"
+                  @click="navigate"
+                >
                   <div class="flex items-center gap-2">
                     <Icon :icon="item.icon" />
                     <span>{{ item.title }}</span>
