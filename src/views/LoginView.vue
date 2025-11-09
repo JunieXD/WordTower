@@ -14,10 +14,12 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useNotificationStore } from '@/stores/notification'
 import { useRouter, useRoute } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
 const route = useRoute()
-const store = useNotificationStore()
+const notificationStore = useNotificationStore()
+const authStore = useAuthStore()
 
 const mode = ref<'login' | 'register'>('login')
 const username = ref('')
@@ -31,8 +33,8 @@ const login = async () => {
     passwordHash: password.value,
   })
   if (res.data.code === 0) {
-    localStorage.setItem('auth_token', res.data.data)
-    store.addNotification({
+    authStore.setToken(res.data.data)
+    notificationStore.addNotification({
       title: '登录成功',
       description: '您已成功登录。',
       variant: 'default',
@@ -42,7 +44,7 @@ const login = async () => {
     const redirect = route.query.redirect || '/'
     router.push(redirect as string)
   } else {
-    store.addNotification({
+    notificationStore.addNotification({
       title: '登录失败',
       description: res.data.msg,
       variant: 'destructive',
@@ -54,7 +56,7 @@ const login = async () => {
 // 注册函数
 const register = async () => {
   if (password.value !== confirm.value) {
-    store.addNotification({
+    notificationStore.addNotification({
       title: '注册失败',
       description: '两次密码不一致',
       variant: 'destructive',
@@ -67,7 +69,7 @@ const register = async () => {
     passwordHash: password.value,
   })
   if (res.data.code === 0) {
-    store.addNotification({
+    notificationStore.addNotification({
       title: '注册成功',
       description: '您已成功注册。',
       variant: 'default',
@@ -75,7 +77,7 @@ const register = async () => {
     })
     mode.value = 'login'
   } else {
-    store.addNotification({
+    notificationStore.addNotification({
       title: '注册失败',
       description: res.data.msg,
       variant: 'destructive',
