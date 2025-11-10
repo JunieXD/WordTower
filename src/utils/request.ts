@@ -9,6 +9,7 @@ const request = axios.create({
 
 // 请求拦截器（可自动加 token）
 request.interceptors.request.use((config) => {
+  // console.log('发送请求：', config)
   const authStore = useAuthStore()
   if (!authStore.token) {
     authStore.initToken()
@@ -22,7 +23,10 @@ request.interceptors.request.use((config) => {
 
 // 响应拦截器
 request.interceptors.response.use(
-  (res) => res,
+  (res) => {
+    // console.log('收到响应：', res)
+    return res
+  },
   async (err: AxiosError) => {
     const authStore = useAuthStore()
     const notificationStore = useNotificationStore()

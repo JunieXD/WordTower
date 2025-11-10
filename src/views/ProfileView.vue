@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import request from '@/utils/request'
-import { onMounted, ref } from 'vue'
+import { onMounted } from 'vue'
 import {
   Item,
   ItemContent,
@@ -9,6 +9,7 @@ import {
   ItemMedia,
   ItemGroup,
   ItemSeparator,
+  ItemActions,
 } from '@/components/ui/item'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Progress } from '@/components/ui/progress'
@@ -17,16 +18,19 @@ import { ChevronRight } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
 import { useNotificationStore } from '@/stores/notification'
+import { useUserProfileStore } from '@/stores/userProfile'
 
 const authStore = useAuthStore()
 const router = useRouter()
 const notificationStore = useNotificationStore()
+const userProfileStore = useUserProfileStore()
 
 const logout = async () => {
   try {
     const res = await request.post('/api/auth/logout')
     if (res.data.code === 0) {
       authStore.clearToken()
+      userProfileStore.clearProfile()
       notificationStore.addNotification({
         title: '退出登录',
         description: '您已成功退出登录。',
@@ -43,42 +47,9 @@ const logout = async () => {
 
 const items = [{ name: '退出登录', icon: 'mdi:logout', func: logout }]
 
-interface UserProfile {
-  id: number
-  nickname: string | null
-  username: string
-  email: string | null
-  avatarUrl: string | null
-  exp: number
-  coins: number
-  createdAt: string
-  lastLogin: string
-  status: string
-  maxHp: number
-  attack: number
-  critRate: number
-  role: string
-}
-
-const profile = ref<UserProfile | null>(null)
-const loading = ref(false)
-
-const getProfile = async () => {
-  loading.value = true
-  try {
-    const res = await request.get('/api/auth/profile')
-    if (res.data.code === 0) {
-      profile.value = res.data.data
-    }
-  } catch (error) {
-    console.error('获取用户信息失败:', error)
-  } finally {
-    loading.value = false
-  }
-}
-
 onMounted(async () => {
-  getProfile()
+  // 从 store 获取用户资料（会先显示缓存，然后从后端更新）
+  await userProfileStore.getProfile()
 })
 </script>
 
@@ -87,21 +58,21 @@ onMounted(async () => {
     <Item variant="muted" class="m-2 mt-4 w-full max-w-md">
       <ItemMedia class="self-center!">
         <Avatar class="size-12">
-          <AvatarImage :src="profile?.avatarUrl ?? ''" />
+          <AvatarImage :src="userProfileStore.profile?.avatarUrl ?? ''" />
           <AvatarFallback><Icon icon="mdi:account-circle" class="size-12" /></AvatarFallback>
         </Avatar>
       </ItemMedia>
       <ItemContent>
         <ItemTitle>
-          {{ profile?.nickname ?? profile?.username ?? '用户名' }}
+          {{ userProfileStore.profile?.nickname ?? userProfileStore.profile?.username ?? '用户名' }}
         </ItemTitle>
         <div class="flex flex-row gap-10">
-          <ItemDescription> 等级：{{ profile?.exp ?? 0 }} </ItemDescription>
-          <ItemDescription> 金币：{{ profile?.coins ?? 0 }} </ItemDescription>
+          <ItemDescription> 等级：{{ userProfileStore.profile?.exp ?? 0 }} </ItemDescription>
+          <ItemDescription> 金币：{{ userProfileStore.profile?.coins ?? 0 }} </ItemDescription>
         </div>
         <Progress
-          :model-value="profile?.exp ?? 0"
-          :label="`${profile?.exp ?? 0} / 100`"
+          :model-value="userProfileStore.profile?.exp ?? 0"
+          :label="`${userProfileStore.profile?.exp ?? 0} / 100`"
           show-label
         />
       </ItemContent>
