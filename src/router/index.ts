@@ -4,6 +4,8 @@ const LoginView = () => import('@/views/LoginView.vue')
 const LibraryView = () => import('@/views/LibraryView.vue')
 const ProfileView = () => import('@/views/ProfileView.vue')
 const NotFoundView = () => import('@/views/NotFoundView.vue')
+const UpgradeView = () => import('@/views/UpgradeView.vue')
+const LeaderboardView = () => import('@/views/LeaderboardView.vue')
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
@@ -16,6 +18,8 @@ const routes = [
       { path: '', redirect: { name: 'home' } },
       { path: 'home', name: 'home', component: HomeView },
       { path: 'library', name: 'library', component: LibraryView },
+      { path: 'upgrade', name: 'upgrade', component: UpgradeView },
+      { path: 'leaderboard', name: 'leaderboard', component: LeaderboardView },
       { path: 'profile', name: 'profile', component: ProfileView },
     ],
   },

@@ -2,6 +2,8 @@
 const items = [
   { title: '主页', url: 'home', icon: 'mdi:home-variant-outline' },
   { title: '词库', url: 'library', icon: 'mdi:bookshelf' },
+  { title: '升级', url: 'upgrade', icon: 'mdi:arrow-up-circle-outline' },
+  { title: '排行榜', url: 'leaderboard', icon: 'mdi:chart-box-outline' },
   { title: '我的', url: 'profile', icon: 'mdi:account' },
 ]
 </script>
