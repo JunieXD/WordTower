@@ -14,12 +14,7 @@
       </Card>
     </div>
     <div class="w-full max-w-md flex-1 flex flex-col justify-center gap-4">
-      <Button
-        variant="outline"
-        class="w-full text-md h-12 cursor-pointer hover:bg-accent/50 active:bg-accent transition-all"
-      >
-        开始闯塔
-      </Button>
+      <Button variant="outline" class="w-full text-md h-12"> 开始闯塔 </Button>
     </div>
   </div>
 </template>

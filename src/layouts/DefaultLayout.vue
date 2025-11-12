@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import FooterNav from '@/components/FooterNav.vue'
 import AppSidebar from '@/components/AppSidebar.vue'
+import AppHeader from '@/components/AppHeader.vue'
 import { SidebarProvider } from '@/components/ui/sidebar'
 </script>
 
@@ -14,7 +15,9 @@ import { SidebarProvider } from '@/components/ui/sidebar'
     </div>
     <!-- 主区域 -->
     <main class="flex flex-col flex-1">
-      <router-view class="flex-1 pb-16 lg:pb-0" />
+      <!-- 顶部栏：所有页面显示 -->
+      <AppHeader />
+      <RouterView class="flex-1 pb-16 lg:pb-0" />
       <!-- 底部导航栏：仅手机端显示 -->
       <FooterNav class="block lg:hidden" />
     </main>
