@@ -143,7 +143,11 @@ const handleSubmit = () => {
         </form>
       </CardContent>
       <CardFooter class="flex flex-none justify-center">
-        <Button @click="handleSubmit" variant="outline" class="w-2/5 text-1xl cursor-pointer">
+        <Button
+          @click="handleSubmit"
+          variant="outline"
+          class="w-2/5 text-1xl cursor-pointer hover:bg-accent/50 active:bg-accent transition-all"
+        >
           {{ mode === 'login' ? '登&nbsp;&nbsp;录' : '注&nbsp;&nbsp;册' }}
         </Button>
       </CardFooter>
