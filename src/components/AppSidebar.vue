@@ -39,7 +39,7 @@ const items = [
               <RouterLink :to="'/' + item.url" custom v-slot="{ navigate }">
                 <SidebarMenuButton
                   asChild
-                  class="my-1 h-10 cursor-pointer select-none"
+                  class="my-1 h-10 cursor-pointer select-none hover:bg-accent/50 active:bg-accent transition-all"
                   @click="navigate"
                 >
                   <div class="flex items-center gap-2">

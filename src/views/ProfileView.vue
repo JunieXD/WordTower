@@ -54,7 +54,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="flex flex-col gap-6 m-4 h-screen rounded-lg items-center">
+  <div class="flex flex-col gap-6 p-4 h-screen rounded-lg justify-center items-center">
     <Item variant="muted" class="m-2 mt-4 w-full max-w-md">
       <ItemMedia class="self-center!">
         <Avatar class="size-12">
@@ -63,7 +63,7 @@ onMounted(async () => {
         </Avatar>
       </ItemMedia>
       <ItemContent>
-        <ItemTitle>
+        <ItemTitle class="font-bold">
           {{ userProfileStore.profile?.nickname ?? userProfileStore.profile?.username ?? '用户名' }}
         </ItemTitle>
         <div class="flex flex-row gap-10">
@@ -83,7 +83,7 @@ onMounted(async () => {
       </ItemActions>
     </Item>
     <ItemGroup
-      class="flex flex-col w-full max-w-md border border-border rounded-lg overflow-y-auto grow shrink min-h-0 mb-32"
+      class="flex flex-col w-full max-w-md border border-border rounded-lg overflow-y-auto grow shrink min-h-0 mb-8"
     >
       <template v-for="item in items" :key="item.name">
         <Item

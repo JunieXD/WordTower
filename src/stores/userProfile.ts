@@ -17,6 +17,7 @@ export interface UserProfile {
   attack: number
   critRate: number
   role: string
+  maxFloor: number
 }
 
 const STORAGE_KEY = 'user_profile'
