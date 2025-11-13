@@ -36,14 +36,14 @@ const router = createRouter({
   routes,
 })
 
-router.beforeEach(async (to) => {
-  const authStore = useAuthStore()
-  if (!authStore.isAuthenticated) {
-    authStore.initToken()
-  }
-  if (to.meta.requiresAuth && !authStore.isAuthenticated) {
-    return { name: 'login', query: { redirect: to.fullPath } }
-  }
-})
+// router.beforeEach(async (to) => {
+//   const authStore = useAuthStore()s
+//   if (!authStore.isAuthenticated) {
+//     authStore.initToken()
+//   }
+//   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
+//     return { name: 'login', query: { redirect: to.fullPath } }
+//   }
+// })
 
 export default router
