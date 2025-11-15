@@ -7,4 +7,6 @@ class Settings:
         "postgresql://postgres:123456@localhost:5432/wordtower"
     )
 
+    SECRET_KEY: str = os.getenv("SECRET_KEY", "wordtower")
+
 settings = Settings()

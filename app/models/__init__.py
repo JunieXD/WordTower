@@ -1,4 +1,4 @@
-from .user import User, UserStatus
+from .user import User, UserStatus, UserCreate, UserRead, UserLogin
 from .buff import Buff
 from .level import Level
 from .prop import Prop
@@ -15,7 +15,7 @@ from .user_user_link import UserUserLink, FriendStatus
 from .user_word_record import UserWordRecord
 
 __all__ = [
-    "User", "UserStatus",
+    "User", "UserStatus", "UserCreate", "UserRead", "UserLogin",
     "Buff",
     "Level",
     "Prop",

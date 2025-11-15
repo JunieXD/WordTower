@@ -10,15 +10,11 @@ class UserStatus(str, Enum):
     INACTIVE = "inactive"
     BANNED = "banned"
 
-
-class User(SQLModel, table=True):
-    __tablename__ = "user"
-    
+class UserBase(SQLModel):
     id: Optional[int] = Field(default=None, primary_key=True)
     nickname: Optional[str] = Field(default=None, max_length=255)
     username: str = Field(max_length=255, unique=True)
     email: Optional[str] = Field(default=None, max_length=255, unique=True)
-    password_hash: str = Field(max_length=255)
     avatar_url: Optional[str] = Field(default=None, max_length=1024)
     exp: int = Field(default=0)
     coins: int = Field(default=0)
@@ -30,3 +26,17 @@ class User(SQLModel, table=True):
     crit_rate: float = Field(default=0.0)
     role: str = Field(default="player", max_length=50)
     max_floor: int = Field(default=0)
+
+
+class User(UserBase, table=True):
+    __tablename__ = "user"
+    password_hash: str = Field(max_length=255)
+
+class UserCreate(UserBase):
+    password: str = Field(max_length=255)
+
+class UserRead(UserBase):
+    pass
+
+class UserLogin(UserBase):
+    password: str = Field(max_length=255)
