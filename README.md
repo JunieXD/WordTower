@@ -2,6 +2,12 @@
 
 ## 开发环境
 
+### 数据库初始化
+
+```
+uv run python -m app.scripts.init_db
+```
+
 ### 数据库迁移
 
 ```
