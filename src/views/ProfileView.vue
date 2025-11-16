@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import request from '@/utils/request'
-import { onMounted } from 'vue'
+import { onMounted, ref } from 'vue'
 import {
   Item,
   ItemContent,
@@ -15,21 +15,27 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Progress } from '@/components/ui/progress'
 import { Button } from '@/components/ui/button'
 import { ChevronRight } from 'lucide-vue-next'
-import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
 import { useNotificationStore } from '@/stores/notification'
 import { useUserProfileStore } from '@/stores/userProfile'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
 
-const authStore = useAuthStore()
+const confirmRef = ref<InstanceType<typeof ConfirmDialog>>()
 const router = useRouter()
 const notificationStore = useNotificationStore()
 const userProfileStore = useUserProfileStore()
 
 const logout = async () => {
   try {
+    const ok = await confirmRef.value?.open({
+      title: '退出登录',
+      description: '确定要退出登录吗？',
+      cancelText: '取消',
+      actionText: '确定',
+    })
+    if (!ok) return
     const res = await request.post('/api/auth/logout')
-    if (res.data.code === 0) {
-      authStore.clearToken()
+    if (res.data.success) {
       userProfileStore.clearProfile()
       notificationStore.addNotification({
         title: '退出登录',
@@ -38,10 +44,9 @@ const logout = async () => {
         duration: 2000,
       })
     }
+    router.push({ name: 'login' })
   } catch (error) {
     console.error('退出登录失败:', error)
-  } finally {
-    router.push({ name: 'login' })
   }
 }
 
@@ -106,4 +111,5 @@ onMounted(async () => {
       </template>
     </ItemGroup>
   </div>
+  <ConfirmDialog ref="confirmRef" />
 </template>

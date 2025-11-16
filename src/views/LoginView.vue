@@ -14,12 +14,10 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useNotificationStore } from '@/stores/notification'
 import { useRouter, useRoute } from 'vue-router'
-import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
 const route = useRoute()
 const notificationStore = useNotificationStore()
-const authStore = useAuthStore()
 
 const mode = ref<'login' | 'register'>('login')
 const username = ref('')
@@ -30,10 +28,9 @@ const confirm = ref('')
 const login = async () => {
   const res = await request.post('/api/auth/login', {
     username: username.value,
-    passwordHash: password.value,
+    password: password.value,
   })
-  if (res.data.code === 0) {
-    authStore.setToken(res.data.data)
+  if (res.data.success) {
     notificationStore.addNotification({
       title: '登录成功',
       description: '您已成功登录。',
@@ -46,7 +43,7 @@ const login = async () => {
   } else {
     notificationStore.addNotification({
       title: '登录失败',
-      description: res.data.msg,
+      description: res.data.message,
       variant: 'destructive',
       duration: 4000,
     })
@@ -66,9 +63,9 @@ const register = async () => {
   }
   const res = await request.post('/api/auth/register', {
     username: username.value,
-    passwordHash: password.value,
+    password: password.value,
   })
-  if (res.data.code === 0) {
+  if (res.data.success) {
     notificationStore.addNotification({
       title: '注册成功',
       description: '您已成功注册。',
@@ -79,7 +76,7 @@ const register = async () => {
   } else {
     notificationStore.addNotification({
       title: '注册失败',
-      description: res.data.msg,
+      description: res.data.message,
       variant: 'destructive',
       duration: 4000,
     })
@@ -119,7 +116,7 @@ const handleSubmit = () => {
       </CardHeader>
       <CardContent class="grow content-center">
         <form>
-          <div class="flex flex-col space-y-4">
+          <div class="flex flex-col gap-y-4">
             <Label for="username">用户名</Label>
             <Input v-model="username" placeholder="username" />
             <Label for="password">密码</Label>
@@ -129,8 +126,11 @@ const handleSubmit = () => {
               type="password"
               @keyup.enter.prevent="handleSubmit"
             />
+            <p v-if="password.length > 0 && password.length < 6" class="text-sm text-red-500">
+              密码少于6位
+            </p>
             <!-- 注册多一个确认密码输入框 -->
-            <div v-if="mode === 'register'" class="flex flex-col space-y-4">
+            <template v-if="mode === 'register'">
               <Label for="confirm">确认密码</Label>
               <Input
                 v-model="confirm"
@@ -138,7 +138,10 @@ const handleSubmit = () => {
                 type="password"
                 @keyup.enter.prevent="handleSubmit"
               />
-            </div>
+              <p v-if="confirm.length > 0 && confirm !== password" class="text-sm text-red-500">
+                两次密码不一致
+              </p>
+            </template>
           </div>
         </form>
       </CardContent>

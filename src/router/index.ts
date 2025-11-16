@@ -7,7 +7,8 @@ const NotFoundView = () => import('@/views/NotFoundView.vue')
 const UpgradeView = () => import('@/views/UpgradeView.vue')
 const LeaderboardView = () => import('@/views/LeaderboardView.vue')
 import { createRouter, createWebHistory } from 'vue-router'
-import { useAuthStore } from '@/stores/auth'
+import { useUserProfileStore } from '@/stores/userProfile'
+import { useNotificationStore } from '@/stores/notification'
 
 const routes = [
   {
@@ -37,12 +38,21 @@ const router = createRouter({
 })
 
 router.beforeEach(async (to) => {
-  const authStore = useAuthStore()
-  if (!authStore.isAuthenticated) {
-    authStore.initToken()
-  }
-  if (to.meta.requiresAuth && !authStore.isAuthenticated) {
-    return { name: 'login', query: { redirect: to.fullPath } }
+  if (to.meta.requiresAuth) {
+    const userProfileStore = useUserProfileStore()
+    if (!userProfileStore.profile) {
+      const profile = await userProfileStore.getProfile(true)
+      if (!profile) {
+        const notificationStore = useNotificationStore()
+        notificationStore.addNotification({
+          title: '登录已过期',
+          description: '登录已过期，请重新登录',
+          variant: 'destructive',
+          duration: 4000,
+        })
+        return { name: 'login', query: { redirect: to.fullPath } }
+      }
+    }
   }
 })
 

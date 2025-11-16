@@ -1,23 +1,17 @@
-import { useAuthStore } from '@/stores/auth'
-import { useNotificationStore } from '@/stores/notification'
 import axios, { AxiosError } from 'axios'
 
 const request = axios.create({
   baseURL: '',
   timeout: 5000,
+  withCredentials: true,
+  validateStatus: function (status) {
+    return status < 500 // 允许 4xx 状态码进入 .then() 成功回调
+  },
 })
 
-// 请求拦截器（可自动加 token）
+// 请求拦截器
 request.interceptors.request.use((config) => {
   // console.log('发送请求：', config)
-  const authStore = useAuthStore()
-  if (!authStore.token) {
-    authStore.initToken()
-  }
-
-  if (authStore.token) {
-    config.headers.Authorization = `Bearer ${authStore.token}`
-  }
   return config
 })
 
@@ -28,20 +22,7 @@ request.interceptors.response.use(
     return res
   },
   async (err: AxiosError) => {
-    const authStore = useAuthStore()
-    const notificationStore = useNotificationStore()
-    if (err.response?.status === 401) {
-      authStore.clearToken()
-      notificationStore.addNotification({
-        title: '登录已过期',
-        description: '登录已过期，请重新登录',
-        variant: 'destructive',
-        duration: 4000,
-      })
-      setTimeout(() => {
-        window.location.href = '/login'
-      }, 2000)
-    }
+    // console.log('收到错误：', err.response)
     return Promise.reject(err)
   },
 )

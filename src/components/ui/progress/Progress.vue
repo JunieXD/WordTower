@@ -43,7 +43,7 @@ const displayLabel = computed(() => {
     />
     <span
       v-if="displayLabel"
-      class="absolute inset-0 flex items-center justify-center text-xs font-medium text-primary-foreground z-10 pointer-events-none"
+      class="absolute inset-0 flex items-center justify-center text-xs font-medium text-primary-foreground z-1 pointer-events-none"
     >
       {{ displayLabel }}
     </span>

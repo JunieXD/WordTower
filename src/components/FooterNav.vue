@@ -9,7 +9,7 @@ const items = [
 </script>
 <template>
   <nav
-    class="fixed bottom-0 left-0 right-0 bg-white border-t flex justify-around items-center h-16 text-gray-600"
+    class="fixed bottom-0 left-0 right-0 bg-white border-t flex justify-around items-center h-16 text-gray-600 z-10"
   >
     <RouterLink
       v-for="item in items"

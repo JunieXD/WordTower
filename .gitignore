@@ -11,6 +11,8 @@ node_modules
 .DS_Store
 dist
 dist-ssr
+dev-dist
+dev_dist
 coverage
 *.local
 
