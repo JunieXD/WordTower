@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { useRoute } from 'vue-router'
 import { computed } from 'vue'
-import { Button } from '@/components/ui/button'
 
 const route = useRoute()
 
@@ -49,9 +48,7 @@ const headerConfig = computed(() => {
 </script>
 
 <template>
-  <header
-    class="flex items-center justify-between px-8 py-4 border-b border-border bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60"
-  >
+  <header class="flex items-center justify-between px-8 py-4 border-b border-border bg-white">
     <div class="text-md">{{ headerConfig.title }}</div>
   </header>
 </template>
