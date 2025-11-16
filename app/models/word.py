@@ -2,9 +2,7 @@ from sqlmodel import Field, SQLModel
 from typing import Optional
 
 
-class Word(SQLModel, table=True):
-    __tablename__ = "word"
-    
+class WordBase(SQLModel):
     id: Optional[int] = Field(default=None, primary_key=True)
     text: str = Field(max_length=255, unique=True)
     meaning: Optional[str] = Field(default=None)
@@ -13,3 +11,9 @@ class Word(SQLModel, table=True):
     example: Optional[str] = Field(default=None)
     difficulty: Optional[int] = Field(default=None)
     tags: Optional[str] = Field(default=None, max_length=255)
+
+class Word(WordBase, table=True):
+    __tablename__ = "word"
+
+class WordCreate(WordBase):
+    pass

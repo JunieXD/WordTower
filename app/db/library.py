@@ -11,3 +11,8 @@ def get_library(session: Session, username: str) -> list[Library]:
         return []
     statement = select(Library).where((Library.creator_id == user.id) | (Library.visibility == LibraryVisibility.PUBLIC))
     return session.exec(statement).all()
+
+
+def create_library_(session: Session, library: Library) -> None:
+    session.add(library)
+    session.commit()
