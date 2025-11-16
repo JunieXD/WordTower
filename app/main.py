@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from app.api.routes import auth
+from app.api.routes import library
 from fastapi.middleware.cors import CORSMiddleware
 from app.utils.cors import origins
 
@@ -14,3 +15,4 @@ app.add_middleware(
 )
 
 app.include_router(auth.router)
+app.include_router(library.router)
