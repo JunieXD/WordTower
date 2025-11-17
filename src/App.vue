@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import NotificationContainer from '@/components/NotificationContainer.vue'
-import PWAInstallPrompt from '@/components/PWAInstallPrompt.vue'
+// import PWAInstallPrompt from '@/components/PWAInstallPrompt.vue'
 </script>
 
 <template>
-  <PWAInstallPrompt />
+  <!-- <PWAInstallPrompt /> -->
   <NotificationContainer />
   <router-view />
 </template>

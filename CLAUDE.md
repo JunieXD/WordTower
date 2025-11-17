@@ -1,12 +1,15 @@
 # CLAUDE.md
 
-## 请使用中文和我对话
-
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Language
+
+Please use Chinese to communicate with me.
+请使用简体中文与我交流。
 
 ## Project Overview
 
-WordTower is a Vue 3 + TypeScript Progressive Web Application (PWA) with a mobile-first responsive design. The app features authentication, user profiles, and a gamified experience with RPG-like attributes (HP, attack, crit rate, etc.).
+WordTower 是一个 Vue 3 + TypeScript 的渐进式 Web 应用（PWA），采用移动优先的响应式设计。应用包含身份验证、用户资料和游戏化体验，包括 RPG 风格的属性（HP、攻击力、暴击率等）。
 
 ## Development Commands
 
@@ -38,31 +41,31 @@ npm run test:unit           # Run all unit tests
 - **State Management**: Pinia stores
 - **Routing**: Vue Router with lazy-loaded views
 - **UI Components**:
-  - Naive UI (auto-imported)
+  - Naive UI (auto-imported via unplugin-vue-components)
   - Reka UI (headless components)
   - Vant (mobile components)
-  - Custom components in `src/components/ui/`
-- **Styling**: Tailwind CSS v4 with custom utilities
+- **Styling**: Tailwind CSS v4 via @tailwindcss/vite plugin
 - **Icons**: Iconify Vue (registered globally as `<Icon>`)
 - **HTTP Client**: Axios with custom request wrapper
-- **PWA**: vite-plugin-pwa with workbox for offline support
+- **PWA**: vite-plugin-pwa (currently commented out in vite.config.ts)
 
 ### Project Structure
 
 ```
-
 src/
 ├── views/              # Route-level page components
 ├── layouts/            # Layout wrappers (DefaultLayout with sidebar/header/footer)
 ├── components/         # Reusable components
-│   ├── ui/            # UI component library (shadcn-style)
 │   ├── AppHeader.vue  # Top navigation bar
 │   ├── AppSidebar.vue # Desktop sidebar navigation
-│   └── FooterNav.vue  # Mobile bottom navigation
+│   ├── FooterNav.vue  # Mobile bottom navigation
+│   ├── NotificationContainer.vue  # Global notification renderer
+│   └── NotificationItem.vue       # Single notification component
 ├── stores/            # Pinia state management
-│   ├── auth.ts       # Token management with localStorage persistence
 │   ├── userProfile.ts # User profile with cache-first strategy
-│   └── notification.ts # Global notification system
+│   ├── notification.ts # Global notification system
+│   ├── library.ts     # Library-related state (new)
+│   └── upgrade.ts     # Upgrade-related state (new)
 ├── router/            # Vue Router configuration
 ├── utils/             # Utility functions
 │   └── request.ts    # Axios instance with interceptors
@@ -72,38 +75,41 @@ src/
 
 ### State Management (Pinia)
 
-#### Auth Store (`stores/auth.ts`)
-- Manages JWT token in localStorage
-- Provides `isAuthenticated` computed property
-- Methods: `setToken()`, `clearToken()`, `initToken()`
-
 #### User Profile Store (`stores/userProfile.ts`)
+
 - Implements cache-first strategy: shows cached data immediately, updates in background
-- Profile includes game attributes: `maxHp`, `attack`, `critRate`, `maxFloor`, `exp`, `coins`
-- Methods: `getProfile(forceRefresh?)`, `updateProfile(partial)`, `clearProfile()`
-- Automatically persists to localStorage
+- Profile interface includes game attributes: `max_hp`, `attack`, `crit_rate`, `max_floor`, `exp`, `coins`
+- Methods: `getProfile(forceRefresh?)`, `updateProfile(partial)`, `clearProfile()`, `fetchProfile()`
+- No localStorage persistence (data only in memory)
 
 #### Notification Store (`stores/notification.ts`)
-- Queue-based notification system
+
+- Queue-based notification system with auto-generated IDs
 - Supports variants: `default`, `destructive`
-- Auto-dismiss with configurable duration
+- Auto-dismiss with configurable duration (default 3 seconds)
+- New notifications appear at the top (using `unshift`)
 - Rendered by `NotificationContainer.vue` in App root
 
 ### Routing
 
-Routes are defined in `src/router/index.ts`:
+Routes are defined in [router/index.ts](src/router/index.ts):
+
 - All routes use lazy loading for code splitting
 - Main routes wrapped in `DefaultLayout` with `requiresAuth: true` meta
-- Auth guard is currently commented out (lines 39-47)
+- **Auth guard is ENABLED** (lines 40-57): checks userProfile, redirects to login if profile fetch fails
 - Routes: `/home`, `/library`, `/upgrade`, `/leaderboard`, `/profile`, `/login`
+- Uses `createWebHistory` for clean URLs
 
 ### HTTP Requests
 
-The `request.ts` utility wraps Axios with:
-- **Base URL**: Empty string (relies on Vite proxy: `/api` → `http://localhost:8080`)
-- **Request Interceptor**: Automatically adds `Authorization: Bearer {token}` header
-- **Response Interceptor**: Handles 401 errors by clearing token and redirecting to login
+The [utils/request.ts](src/utils/request.ts) utility wraps Axios with:
+
+- **Base URL**: Empty string (relies on Vite proxy: `/api` → `http://localhost:8000`)
 - **Timeout**: 5 seconds
+- **withCredentials**: true (for cookie-based auth)
+- **validateStatus**: accepts all status codes < 500 (4xx goes to success callback)
+- **Request Interceptor**: Currently minimal (just logging)
+- **Response Interceptor**: Minimal error handling (no auto-redirect on 401)
 
 ### Responsive Design
 
@@ -114,52 +120,65 @@ The `request.ts` utility wraps Axios with:
 
 ### PWA Configuration
 
-Configured in `vite.config.ts`:
-- Auto-update service worker
-- Caches images (30 days) and API responses (5 minutes)
-- Offline-capable with runtime caching strategies
+**Currently disabled** (commented out in [vite.config.ts](vite.config.ts:22-79)):
+
+- Would use auto-update service worker
+- Would cache images (30 days) and API responses (5 minutes)
 - Manifest configured for portrait mobile app experience
+
+To enable PWA:
+
+1. Uncomment lines 22-79 in vite.config.ts
+2. Import VitePWA plugin at top of file
+3. Add plugin to plugins array
 
 ### Auto-Import Setup
 
-- Vue APIs (`ref`, `computed`, etc.) are auto-imported
-- Naive UI composables (`useDialog`, `useMessage`, etc.) are auto-imported
-- Naive UI components are auto-registered (no manual imports needed)
-- Components in `src/components/ui/` use manual imports
+- Vue APIs (`ref`, `computed`, etc.) are auto-imported via unplugin-auto-import
+- Naive UI components would be auto-registered IF unplugin-vue-components was configured (currently NOT set up)
+- Components must be manually imported
 
 ### HTTPS Development
 
-The dev server requires SSL certificates:
+The dev server uses SSL certificates for HTTPS:
+
 - Certificate files: `localhost+2-key.pem` and `localhost+2.pem` in project root
-- These are needed for PWA testing and secure contexts
+- Required for PWA testing and secure contexts
 - Generate with mkcert if missing
+- Server runs on `0.0.0.0:5173` with HTTPS
 
 ## Code Conventions
 
 ### Vue Components
+
 - Use `<script setup lang="ts">` syntax exclusively
 - Composition API with TypeScript
-- Component names can be single-word (vue/multi-word-component-names is disabled)
+- Component names can be single-word (`vue/multi-word-component-names` is disabled)
 
 ### TypeScript
+
 - Path alias `@/` maps to `src/`
 - Strict typing enabled
 - Use `vue-tsc` for type checking (not `tsc`)
+- tsconfig is split: tsconfig.app.json, tsconfig.node.json, tsconfig.vitest.json
 
 ### API Integration
+
 - Always use `request` instance from `@/utils/request`, not raw axios
 - API endpoints should start with `/api/` to leverage Vite proxy
-- Backend expected at `http://localhost:8080` in development
+- Backend expected at `http://localhost:8000` in development
+- Use `withCredentials: true` for cookie-based authentication
 
 ### Styling
-- Tailwind utility classes preferred
+
+- Tailwind CSS v4 via @tailwindcss/vite plugin (not PostCSS)
+- Utility classes preferred
 - Component-specific styles in `<style scoped>` when needed
-- Custom utilities via `tailwind-merge` and `clsx` in `lib/utils.ts`
 
 ## Important Notes
 
 - **Node Version**: Requires Node.js ^20.19.0 or >=22.12.0
-- **Auth Guard**: Currently disabled in router (see router/index.ts:39-47)
+- **Auth Guard**: ENABLED in router - fetches profile before accessing protected routes
 - **Icons**: Use `<Icon icon="icon-name" />` component (from @iconify/vue)
-- **Global State**: Avoid prop drilling; use Pinia stores for shared state
-- **PWA Updates**: Service worker auto-updates, users see new version on next load
+- **PWA**: Currently disabled, must be manually enabled in vite.config.ts
+- **Backend URL**: Proxy configured to `http://localhost:8000` (not 8080!)

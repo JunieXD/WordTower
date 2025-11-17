@@ -1,104 +1,107 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useUserProfileStore } from '@/stores/userProfile'
 import { useNotificationStore } from '@/stores/notification'
 import request from '@/utils/request'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Progress } from '@/components/ui/progress'
-import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import { useUpgradeStore } from '@/stores/upgrade'
 
 const userProfileStore = useUserProfileStore()
 const notificationStore = useNotificationStore()
-const confirmRef = ref<InstanceType<typeof ConfirmDialog>>()
+const upgradeStore = useUpgradeStore()
 
 // 升级项配置
 interface UpgradeItem {
-  key: 'maxHp' | 'attack' | 'critRate'
+  key: 'max_hp' | 'attack' | 'crit_rate'
   name: string
   icon: string
+  iconColor: string
   description: string
   currentValue: number
-  maxLevel: number
-  getUpgradeCost: (level: number) => number
-  getNextValue: (currentValue: number) => number
+  UpgradeCost: number
+  NextValue: number
 }
 
 const upgradeItems = computed<UpgradeItem[]>(() => [
   {
-    key: 'maxHp',
+    key: 'max_hp',
     name: '最大血量',
     icon: 'mdi:heart',
+    iconColor: 'text-red-500',
     description: '增加你的生命值上限',
-    currentValue: userProfileStore.profile?.maxHp ?? 100,
-    maxLevel: 50,
-    getUpgradeCost: (level: number) => Math.floor(100 * Math.pow(1.15, level)),
-    getNextValue: (current: number) => current + 10,
+    currentValue: userProfileStore.profile?.max_hp ?? 100,
+    UpgradeCost: upgradeStore.upgradeValues?.upgrade_hp_coins ?? 100,
+    NextValue:
+      (userProfileStore.profile?.max_hp ?? 100) +
+      (upgradeStore.upgradeValues?.upgrade_hp_value ?? 0),
   },
   {
     key: 'attack',
     name: '基础攻击力',
     icon: 'mdi:sword',
+    iconColor: 'text-black-500',
     description: '提升你的基础伤害',
     currentValue: userProfileStore.profile?.attack ?? 10,
-    maxLevel: 50,
-    getUpgradeCost: (level: number) => Math.floor(80 * Math.pow(1.2, level)),
-    getNextValue: (current: number) => current + 2,
+    UpgradeCost: upgradeStore.upgradeValues?.upgrade_attack_coins ?? 100,
+    NextValue:
+      (userProfileStore.profile?.attack ?? 10) +
+      (upgradeStore.upgradeValues?.upgrade_attack_value ?? 0),
   },
   {
-    key: 'critRate',
+    key: 'crit_rate',
     name: '暴击率',
     icon: 'mdi:flash',
+    iconColor: 'text-green-500',
     description: '提高造成暴击伤害的概率',
-    currentValue: userProfileStore.profile?.critRate ?? 5,
-    maxLevel: 50,
-    getUpgradeCost: (level: number) => Math.floor(120 * Math.pow(1.25, level)),
-    getNextValue: (current: number) => Math.min(current + 1, 100),
+    currentValue: userProfileStore.profile?.crit_rate ?? 0,
+    UpgradeCost: upgradeStore.upgradeValues?.upgrade_crit_rate_coins ?? 100,
+    NextValue:
+      (userProfileStore.profile?.crit_rate ?? 0) +
+      (upgradeStore.upgradeValues?.upgrade_crit_rate_value ?? 0),
   },
 ])
 
-// 当前升级等级（基于当前值推算）
-const getCurrentLevel = (item: UpgradeItem): number => {
-  if (item.key === 'maxHp') {
-    return Math.floor((item.currentValue - 100) / 10)
-  } else if (item.key === 'attack') {
-    return Math.floor((item.currentValue - 10) / 2)
-  } else if (item.key === 'critRate') {
-    return item.currentValue - 5
-  }
-  return 0
-}
-
-// 是否达到最大等级
-const isMaxLevel = (item: UpgradeItem): boolean => {
-  return getCurrentLevel(item) >= item.maxLevel
-}
-
 // 是否有足够金币
 const canAfford = (item: UpgradeItem): boolean => {
-  const cost = item.getUpgradeCost(getCurrentLevel(item))
+  const cost = item.UpgradeCost
   return (userProfileStore.profile?.coins ?? 0) >= cost
+}
+
+// 格式化显示数值
+const formatValue = (key: string, value: number): string => {
+  if (key === 'crit_rate') {
+    return `${(value * 100).toFixed(1)}%`
+  }
+  return value.toString()
 }
 
 // 升级处理
 const handleUpgrade = async (item: UpgradeItem) => {
-  const res = await request.post('/api/user/upgrade', {
-    attribute: item.key,
-  })
+  const res = await request.post(`/api/upgrade/${item.key}`)
 
   if (res.data.success) {
     notificationStore.addNotification({
       title: '升级成功',
-      description: `${item.name}已提升至 ${item.getNextValue(item.currentValue)}`,
+      description: `${item.name} 已提升至 ${formatValue(item.key, item.NextValue)}`,
       variant: 'default',
       duration: 2000,
     })
     await userProfileStore.getProfile(true)
+    console.log(userProfileStore.profile)
+  } else {
+    notificationStore.addNotification({
+      title: '升级失败',
+      description: res.data.message,
+      variant: 'destructive',
+      duration: 2000,
+    })
   }
 }
 
 onMounted(async () => {
   await userProfileStore.getProfile()
+  await upgradeStore.getUpgradeValues()
 })
 </script>
 
@@ -118,26 +121,15 @@ onMounted(async () => {
     </Card>
 
     <!-- 升级项列表 -->
-    <div class="flex flex-col gap-4 w-full max-w-md overflow-y-auto grow shrink min-h-0 pb-28">
-      <Card
-        v-for="item in upgradeItems"
-        :key="item.key"
-        class="rounded-lg py-4 gap-4"
-        :class="{ 'opacity-60': isMaxLevel(item) }"
-      >
+    <div class="flex flex-col gap-4 w-full max-w-md overflow-y-auto grow shrink min-h-0 pb-4">
+      <Card v-for="item in upgradeItems" :key="item.key" class="rounded-lg py-4 gap-0">
         <CardHeader>
           <div class="flex items-center justify-between">
             <CardTitle class="flex items-center gap-2 text-md">
-              <Icon :icon="item.icon" class="size-5" />
+              <Icon :icon="item.icon" class="size-5" :class="item.iconColor" />
               {{ item.name }}
             </CardTitle>
-            <div class="text-lg font-bold">{{ item.currentValue }}</div>
-            <div
-              v-if="isMaxLevel(item)"
-              class="text-xs bg-primary/10 text-primary px-2 py-1 rounded"
-            >
-              已满级
-            </div>
+            <div class="text-lg font-bold">{{ formatValue(item.key, item.currentValue) }}</div>
           </div>
         </CardHeader>
         <CardContent class="space-y-3">
@@ -145,37 +137,25 @@ onMounted(async () => {
             {{ item.description }}
           </div>
 
-          <!-- 进度 -->
-          <div class="space-y-1">
-            <Progress
-              :model-value="(getCurrentLevel(item) / item.maxLevel) * 100"
-              :label="`等级 ${getCurrentLevel(item)} / ${item.maxLevel}`"
-              show-label
-              class="h-3"
-            />
-          </div>
-
           <!-- 升级信息和按钮 -->
-          <div v-if="!isMaxLevel(item)" class="flex items-center justify-between pt-2">
+          <div class="flex items-center justify-between pt-2">
             <div class="text-sm">
               <div class="text-muted-foreground">下一级</div>
-              <div class="font-semibold text-lg">{{ item.getNextValue(item.currentValue) }}</div>
+              <div class="font-semibold text-lg">{{ formatValue(item.key, item.NextValue) }}</div>
             </div>
             <Button
               @click="handleUpgrade(item)"
-              :disabled="!canAfford(item)"
-              class="flex items-center gap-1"
+              class="flex items-center gap-1 rounded-3xl"
+              :class="
+                canAfford(item) ? 'bg-green-500 cursor-pointer' : 'bg-gray-500 cursor-not-allowed'
+              "
             >
               <Icon icon="mdi:coin" class="size-4" />
-              {{ item.getUpgradeCost(getCurrentLevel(item)) }}
+              {{ item.UpgradeCost }}
             </Button>
-          </div>
-          <div v-else class="text-center text-sm text-muted-foreground py-2">
-            该属性已达到最大等级
           </div>
         </CardContent>
       </Card>
     </div>
   </div>
-  <ConfirmDialog ref="confirmRef" />
 </template>

@@ -7,42 +7,35 @@ export interface UserProfile {
   nickname: string | null
   username: string
   email: string | null
-  avatarUrl: string | null
+  avatar_url: string | null
   exp: number
   coins: number
-  createdAt: string
-  lastLogin: string
+  created_at: string
+  last_login: string
   status: string
-  maxHp: number
+  max_hp: number
   attack: number
-  critRate: number
+  crit_rate: number
   role: string
-  maxFloor: number
+  max_floor: number
 }
 
 export const useUserProfileStore = defineStore('userProfile', () => {
   // 用户资料状态
   const profile = ref<UserProfile | null>(null)
-  const loading = ref(false)
 
   /**
    * 从后端获取用户资料并更新响应式状态
    * 返回的数据会立即更新 profile.value，视图会自动更新显示最新数据
    */
   async function fetchProfile() {
-    loading.value = true
     try {
       const res = await request.get('/api/auth/profile')
-      if (res.status === 200 && res.data) {
-        profile.value = res.data
-        return res.data
+      if (res.data.success && res.data.data) {
+        profile.value = res.data.data
       }
-      return null
     } catch (error) {
       console.error('获取用户信息失败:', error)
-      return null
-    } finally {
-      loading.value = false
     }
   }
 
@@ -54,9 +47,7 @@ export const useUserProfileStore = defineStore('userProfile', () => {
     if (forceRefresh || !profile.value) {
       await fetchProfile()
     } else {
-      fetchProfile().catch((error) => {
-        console.error('后台更新用户资料失败:', error)
-      })
+      fetchProfile()
     }
     return profile.value
   }
@@ -80,7 +71,6 @@ export const useUserProfileStore = defineStore('userProfile', () => {
 
   return {
     profile,
-    loading,
     fetchProfile,
     getProfile,
     clearProfile,

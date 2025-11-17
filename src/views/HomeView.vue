@@ -24,6 +24,7 @@ import { useUserProfileStore } from '@/stores/userProfile'
 import { ref, onMounted } from 'vue'
 import type { UserProfile } from '@/stores/userProfile'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 const userProfileStore = useUserProfileStore()
 
 const profile = ref<UserProfile | null>(null)

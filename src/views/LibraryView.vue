@@ -1,11 +1,10 @@
 <template>
   <div class="flex flex-col p-8 h-screen items-center gap-4">
-    <div v-for="item in items" :key="item.name" class="h-auto w-full max-w-md">
+    <div v-for="item in libraryStore.libraries" :key="item.name" class="h-auto w-full max-w-md">
       <Card class="rounded-lg gap-1 py-4">
         <CardHeader class="flex flex-row justify-between">
           <CardTitle class="text-md">{{ item.name }}</CardTitle>
-          <Badge v-if="item.visibility === 'public'">公开</Badge>
-          <Badge v-else-if="item.visibility === 'private'">私有</Badge>
+          <Badge v-if="item.visibility === 'public'">内置</Badge>
         </CardHeader>
         <CardContent class="text-xs text-gray-500"> {{ item.word_count }} words </CardContent>
         <div class="flex flex-row justify-center gap-8">
@@ -21,26 +20,15 @@
 </template>
 
 <script setup lang="ts">
-import request from '@/utils/request'
-import { onMounted, ref } from 'vue'
+import { onMounted } from 'vue'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { useLibraryStore } from '@/stores/library'
 
-interface Library {
-  id: number
-  name: string
-  description: string
-  creator_id: number
-  visibility: 'public' | 'private'
-  created_at: string
-  word_count: number
-  updated_at: string
-}
-
-const items = ref<Library[]>([])
+const libraryStore = useLibraryStore()
 
 onMounted(() => {
-  request.get('/api/library/get_libraries').then((res) => {
-    items.value = res.data.data as Library[]
-    console.log(items.value)
-  })
+  libraryStore.getLibraries()
 })
 </script>

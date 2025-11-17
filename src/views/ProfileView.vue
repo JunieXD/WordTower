@@ -11,7 +11,6 @@ import {
   ItemSeparator,
   ItemActions,
 } from '@/components/ui/item'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Progress } from '@/components/ui/progress'
 import { Button } from '@/components/ui/button'
 import { ChevronRight } from 'lucide-vue-next'
@@ -62,10 +61,27 @@ onMounted(async () => {
   <div class="flex flex-col gap-6 p-4 h-screen rounded-lg justify-center items-center">
     <Item variant="muted" class="m-2 mt-4 w-full max-w-md">
       <ItemMedia class="self-center!">
-        <Avatar class="size-12">
-          <AvatarImage :src="userProfileStore.profile?.avatarUrl ?? ''" />
-          <AvatarFallback><Icon icon="mdi:account-circle" class="size-12" /></AvatarFallback>
-        </Avatar>
+        <div
+          class="w-12 h-12 rounded-full bg-linear-to-br from-blue-400 to-blue-500 flex items-center justify-center text-white font-semibold shadow shrink-0"
+        >
+          <img
+            v-if="userProfileStore.profile?.avatar_url"
+            :src="userProfileStore.profile.avatar_url"
+            :alt="
+              userProfileStore.profile?.nickname ?? userProfileStore.profile?.username ?? '用户名'
+            "
+            class="w-full h-full rounded-full object-cover"
+          />
+          <span v-else class="text-base">
+            {{
+              (
+                userProfileStore.profile?.nickname ??
+                userProfileStore.profile?.username ??
+                '用户名'
+              )?.charAt(0)
+            }}
+          </span>
+        </div>
       </ItemMedia>
       <ItemContent>
         <ItemTitle class="font-bold">
@@ -88,7 +104,7 @@ onMounted(async () => {
       </ItemActions>
     </Item>
     <ItemGroup
-      class="flex flex-col w-full max-w-md border border-border rounded-lg overflow-y-auto grow shrink min-h-0 mb-8"
+      class="flex flex-col w-full max-w-md border border-border rounded-lg overflow-y-auto grow shrink min-h-0 mb-16"
     >
       <template v-for="item in items" :key="item.name">
         <Item
@@ -110,6 +126,6 @@ onMounted(async () => {
         <ItemSeparator />
       </template>
     </ItemGroup>
+    <ConfirmDialog ref="confirmRef" />
   </div>
-  <ConfirmDialog ref="confirmRef" />
 </template>
