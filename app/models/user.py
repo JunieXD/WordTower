@@ -11,7 +11,7 @@ class UserStatus(str, Enum):
     BANNED = "banned"
 
 class UserBase(SQLModel):
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int = Field(primary_key=True)
     nickname: Optional[str] = Field(default=None, max_length=255)
     username: str = Field(max_length=255, unique=True)
     email: Optional[str] = Field(default=None, max_length=255, unique=True)

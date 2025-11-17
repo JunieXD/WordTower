@@ -16,10 +16,10 @@ class Settings:
     # 升级暴击率所需金币
     UPGRADE_CRIT_RATE_COINS: int = os.getenv("UPGRADE_CRIT_RATE_COINS", 100)
     # 升级血量数值
-    UPGRADE_HP_HP: int = os.getenv("UPGRADE_HP_HP", 1)
+    UPGRADE_HP_VALUE: int = os.getenv("UPGRADE_HP_VALUE", 1)
     # 升级攻击力数值
-    UPGRADE_ATTACK_ATTACK: int = os.getenv("UPGRADE_ATTACK_ATTACK", 1)
+    UPGRADE_ATTACK_VALUE: int = os.getenv("UPGRADE_ATTACK_VALUE", 1)
     # 升级暴击率数值
-    UPGRADE_CRIT_RATE_CRIT_RATE: float = os.getenv("UPGRADE_CRIT_RATE_CRIT_RATE", 0.01)
+    UPGRADE_CRIT_RATE_VALUE: float = os.getenv("UPGRADE_CRIT_RATE_VALUE", 0.01)
 
 settings = Settings()

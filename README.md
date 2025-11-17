@@ -12,7 +12,12 @@ uv run python -m app.scripts.init_db
 
 ```
 cd app
+# 迁移到最新
 uv run alembic upgrade head
+# 生成迁移文件
+uv run alembic revision --autogenerate -m "描述本次迁移"
+# 回滚
+uv run alembic downgrade -1
 ```
 
 ### 运行项目

@@ -5,7 +5,7 @@ from typing import Optional
 class Buff(SQLModel, table=True):
     __tablename__ = "buff"
     
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int = Field(primary_key=True)
     name: str = Field(max_length=255, unique=True)
     description: Optional[str] = Field(default=None)
     duration: Optional[int] = Field(default=None)

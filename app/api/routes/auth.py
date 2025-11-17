@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends
+from fastapi.encoders import jsonable_encoder
 from app.db.database import SessionDep
 from app.db.user import get_user_by_username, create_user, set_user_last_login
 from app.api.api_responses import success_response, created_response, not_found_response, conflict_response
-from app.models.user import UserCreate, UserRead, UserLogin, User
+from app.models.user import UserCreate, UserLogin, User, UserRead
 from app.utils.security import verify_password, encode_token
 from app.api.dependencies import get_current_user
 
@@ -30,6 +31,7 @@ async def login(session: SessionDep, user_in: UserLogin):
 async def logout(current_user: User = Depends(get_current_user)):
     return success_response(message="登出成功", delete_cookie=True)
 
-@router.get("/profile", response_model=UserRead)
+@router.get("/profile")
 async def profile(current_user: User = Depends(get_current_user)):
-    return current_user
+    user_read = UserRead.model_validate(current_user, from_attributes=True)
+    return success_response(data=jsonable_encoder(user_read))

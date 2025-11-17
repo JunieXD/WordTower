@@ -13,7 +13,7 @@ class LibraryVisibility(str, Enum):
 class Library(SQLModel, table=True):
     __tablename__ = "library"
     
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int = Field(primary_key=True)
     name: str = Field(max_length=255)
     description: Optional[str] = Field(default=None)
     creator_id: Optional[int] = Field(default=None, foreign_key="user.id")
@@ -21,3 +21,4 @@ class Library(SQLModel, table=True):
     created_at: Optional[datetime] = Field(default_factory=lambda: datetime.now(timezone.utc))
     word_count: int = Field(default=0)
     updated_at: Optional[datetime] = Field(default_factory=lambda: datetime.now(timezone.utc))
+    

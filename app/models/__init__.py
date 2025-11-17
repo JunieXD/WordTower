@@ -13,6 +13,7 @@ from .library_word_link import LibraryWordLink
 from .question_word_link import QuestionWordLink
 from .user_user_link import UserUserLink, FriendStatus
 from .user_word_record import UserWordRecord
+from .user_library_select import UserLibrarySelect
 
 __all__ = [
     "User", "UserStatus", "UserCreate", "UserRead", "UserLogin",
@@ -29,5 +30,6 @@ __all__ = [
     "LibraryWordLink",
     "QuestionWordLink",
     "UserUserLink", "FriendStatus",
-    "UserWordRecord"
+    "UserWordRecord",
+    "UserLibrarySelect"
 ]
