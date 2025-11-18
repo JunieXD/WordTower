@@ -5,7 +5,7 @@ from typing import Optional
 class Prop(SQLModel, table=True):
     __tablename__ = "prop"
     
-    id: int = Field(primary_key=True)
+    id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(max_length=255, unique=True)
     description: Optional[str] = Field(default=None)
     rarity: int = Field(default=1)

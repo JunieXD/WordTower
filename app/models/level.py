@@ -6,6 +6,6 @@ from typing import Optional
 class Level(SQLModel, table=True):
     __tablename__ = "level"
     
-    id: int = Field(primary_key=True)
+    id: Optional[int] = Field(default=None, primary_key=True)
     floor: Optional[int] = Field(default=None)
     created_at: Optional[datetime] = Field(default_factory=lambda: datetime.now(timezone.utc))

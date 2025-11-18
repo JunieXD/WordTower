@@ -20,8 +20,24 @@ uv run alembic revision --autogenerate -m "描述本次迁移"
 uv run alembic downgrade -1
 ```
 
+### 导入词库
+
+```
+uv run python -m app.scripts.import_words <sqlite_db_path>
+```
+
+### 创建基于tag的词库
+
+```
+uv run python -m app.scripts.create_tag_libraries
+```
+
 ### 运行项目
 
 ```
 uv run uvicorn app.main:app --reload
 ```
+
+## TODOS
+
+- [ ] 

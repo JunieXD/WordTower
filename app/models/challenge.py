@@ -14,7 +14,7 @@ class ChallengeStatus(str, Enum):
 class Challenge(SQLModel, table=True):
     __tablename__ = "challenge"
     
-    id: int = Field(primary_key=True)
+    id: Optional[int] = Field(default=None, primary_key=True)
     user_id: int = Field(foreign_key="user.id")
     level_id: int = Field(foreign_key="level.id")
     start_time: Optional[datetime] = Field(default_factory=lambda: datetime.now(timezone.utc))

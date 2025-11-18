@@ -3,7 +3,7 @@ from typing import Optional
 
 
 class WordBase(SQLModel):
-    id: int = Field(primary_key=True)
+    id: Optional[int] = Field(default=None, primary_key=True)
     text: str = Field(max_length=255, unique=True)
     meaning: Optional[str] = Field(default=None)
     phonetic: Optional[str] = Field(default=None, max_length=255)

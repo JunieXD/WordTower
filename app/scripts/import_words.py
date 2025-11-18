@@ -141,16 +141,14 @@ def import_words_from_sqlite(sqlite_path: str, batch_size: int = 10000):
                     new_word = Word(
                         text=word_data['word'],
                         phonetic=word_data.get('phonetic'),
-                        meaning=word_data.get('translation') or word_data.get('definition'),
-                        part_of_speech=word_data.get('pos'),
+                        meaning=word_data.get('translation'),
                         difficulty=map_difficulty(
                             collins=word_data.get('collins'),
                             oxford=word_data.get('oxford'),
                             bnc=word_data.get('bnc'),
                             frq=word_data.get('frq')
                         ),
-                        tags=extract_tags(word_data),
-                        example=None  # StarDict 数据中没有例句，可以后续补充
+                        tags=word_data.get('tag')
                     )
 
                     batch.append(new_word)

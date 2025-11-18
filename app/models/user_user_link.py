@@ -14,7 +14,7 @@ class FriendStatus(str, Enum):
 class UserUserLink(SQLModel, table=True):
     __tablename__ = "user_user_link"
     
-    id: int = Field(primary_key=True)
+    id: Optional[int] = Field(default=None, primary_key=True)
     user_id: int = Field(foreign_key="user.id")
     friend_id: int = Field(foreign_key="user.id")
     status: FriendStatus = Field(default=FriendStatus.PENDING, sa_column=Column(String))
