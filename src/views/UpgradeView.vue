@@ -1,27 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { useUserProfileStore } from '@/stores/userProfile'
-import { useNotificationStore } from '@/stores/notification'
-import request from '@/utils/request'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useUpgradeStore } from '@/stores/upgrade'
+import type { UpgradeItem } from '@/stores/upgrade'
 
 const userProfileStore = useUserProfileStore()
-const notificationStore = useNotificationStore()
 const upgradeStore = useUpgradeStore()
-
-// 升级项配置
-interface UpgradeItem {
-  key: 'max_hp' | 'attack' | 'crit_rate'
-  name: string
-  icon: string
-  iconColor: string
-  description: string
-  currentValue: number
-  UpgradeCost: number
-  NextValue: number
-}
 
 const upgradeItems = computed<UpgradeItem[]>(() => [
   {
@@ -62,43 +48,6 @@ const upgradeItems = computed<UpgradeItem[]>(() => [
   },
 ])
 
-// 是否有足够金币
-const canAfford = (item: UpgradeItem): boolean => {
-  const cost = item.UpgradeCost
-  return (userProfileStore.profile?.coins ?? 0) >= cost
-}
-
-// 格式化显示数值
-const formatValue = (key: string, value: number): string => {
-  if (key === 'crit_rate') {
-    return `${(value * 100).toFixed(1)}%`
-  }
-  return value.toString()
-}
-
-// 升级处理
-const handleUpgrade = async (item: UpgradeItem) => {
-  const res = await request.post(`/api/upgrade/${item.key}`)
-
-  if (res.data.success) {
-    notificationStore.addNotification({
-      title: '升级成功',
-      description: `${item.name} 已提升至 ${formatValue(item.key, item.NextValue)}`,
-      variant: 'default',
-      duration: 2000,
-    })
-    await userProfileStore.getProfile(true)
-    console.log(userProfileStore.profile)
-  } else {
-    notificationStore.addNotification({
-      title: '升级失败',
-      description: res.data.message,
-      variant: 'destructive',
-      duration: 2000,
-    })
-  }
-}
-
 onMounted(async () => {
   await userProfileStore.getProfile()
   await upgradeStore.getUpgradeValues()
@@ -129,7 +78,9 @@ onMounted(async () => {
               <Icon :icon="item.icon" class="size-5" :class="item.iconColor" />
               {{ item.name }}
             </CardTitle>
-            <div class="text-lg font-bold">{{ formatValue(item.key, item.currentValue) }}</div>
+            <div class="text-lg font-bold">
+              {{ upgradeStore.formatValue(item.key, item.currentValue) }}
+            </div>
           </div>
         </CardHeader>
         <CardContent class="space-y-3">
@@ -141,13 +92,17 @@ onMounted(async () => {
           <div class="flex items-center justify-between pt-2">
             <div class="text-sm">
               <div class="text-muted-foreground">下一级</div>
-              <div class="font-semibold text-lg">{{ formatValue(item.key, item.NextValue) }}</div>
+              <div class="font-semibold text-lg">
+                {{ upgradeStore.formatValue(item.key, item.NextValue) }}
+              </div>
             </div>
             <Button
-              @click="handleUpgrade(item)"
+              @click="upgradeStore.handleUpgrade(item)"
               class="flex items-center gap-1 rounded-3xl"
               :class="
-                canAfford(item) ? 'bg-green-500 cursor-pointer' : 'bg-gray-500 cursor-not-allowed'
+                upgradeStore.canAfford(item)
+                  ? 'bg-green-500 cursor-pointer'
+                  : 'bg-gray-500 cursor-not-allowed'
               "
             >
               <Icon icon="mdi:coin" class="size-4" />

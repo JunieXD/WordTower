@@ -1,6 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import request from '@/utils/request'
+import { useNotificationStore } from '@/stores/notification'
+import { useUserProfileStore } from '@/stores/userProfile'
 
 export interface UpgradeValues {
   upgrade_hp_coins: number
@@ -11,7 +13,21 @@ export interface UpgradeValues {
   upgrade_crit_rate_value: number
 }
 
+// 升级项配置
+export interface UpgradeItem {
+  key: 'max_hp' | 'attack' | 'crit_rate'
+  name: string
+  icon: string
+  iconColor: string
+  description: string
+  currentValue: number
+  UpgradeCost: number
+  NextValue: number
+}
+
 export const useUpgradeStore = defineStore('upgrade', () => {
+  const notificationStore = useNotificationStore()
+  const userProfileStore = useUserProfileStore()
   const upgradeValues = ref<UpgradeValues | null>(null)
 
   async function fetchUpgradeValues() {
@@ -33,9 +49,49 @@ export const useUpgradeStore = defineStore('upgrade', () => {
     return upgradeValues.value
   }
 
+  // 升级处理
+  const handleUpgrade = async (item: UpgradeItem) => {
+    const res = await request.post(`/api/upgrade/${item.key}`)
+
+    if (res.data.success) {
+      notificationStore.addNotification({
+        title: '升级成功',
+        description: `${item.name} 已提升至 ${formatValue(item.key, item.NextValue)}`,
+        variant: 'default',
+        duration: 2000,
+      })
+      await userProfileStore.getProfile(true)
+      console.log(userProfileStore.profile)
+    } else {
+      notificationStore.addNotification({
+        title: '升级失败',
+        description: res.data.message,
+        variant: 'destructive',
+        duration: 2000,
+      })
+    }
+  }
+
+  // 是否有足够金币
+  const canAfford = (item: UpgradeItem): boolean => {
+    const cost = item.UpgradeCost
+    return (userProfileStore.profile?.coins ?? 0) >= cost
+  }
+
+  // 格式化显示数值
+  const formatValue = (key: string, value: number): string => {
+    if (key === 'crit_rate') {
+      return `${(value * 100).toFixed(1)}%`
+    }
+    return value.toString()
+  }
+
   return {
     upgradeValues,
     fetchUpgradeValues,
     getUpgradeValues,
+    handleUpgrade,
+    canAfford,
+    formatValue,
   }
 })
