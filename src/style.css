@@ -117,7 +117,25 @@
   * {
     @apply border-border outline-ring/50;
   }
+  
+  html {
+    /* 确保 html 高度正确 */
+    height: 100%;
+  }
+  
   body {
     @apply bg-background text-foreground;
+    /* 确保 body 使用完整高度 */
+    height: 100%;
+    /* 移动端防止内容溢出 */
+    position: fixed;
+    width: 100%;
+    overflow: hidden;
+  }
+  
+  #app {
+    /* App 容器使用完整高度 */
+    height: 100%;
+    width: 100%;
   }
 }
