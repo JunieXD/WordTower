@@ -8,12 +8,12 @@ from .challenge import Challenge, ChallengeStatus
 from .challenge_buff_link import ChallengeBuffLink
 from .challenge_prop_link import ChallengePropLink
 from .level_question_link import LevelQuestionLink
-from .library import Library, LibraryVisibility
+from .library import Library, LibraryVisibility, LibraryDetail, LibraryWithWordsId, LibraryWithSelectAndPriority
 from .library_word_link import LibraryWordLink
 from .question_word_link import QuestionWordLink
 from .user_user_link import UserUserLink, FriendStatus
 from .user_word_record import UserWordRecord
-from .user_library_select import UserLibrarySelect
+from .user_library_select import UserLibrarySelect, PriorityItem, UpdatePriorityRequest
 
 __all__ = [
     "User", "UserStatus", "UserCreate", "UserRead", "UserLogin",
@@ -26,10 +26,10 @@ __all__ = [
     "ChallengeBuffLink",
     "ChallengePropLink",
     "LevelQuestionLink",
-    "Library", "LibraryVisibility",
+    "Library", "LibraryVisibility", "LibraryDetail", "LibraryWithWordsId", "LibraryWithSelectAndPriority",
     "LibraryWordLink",
     "QuestionWordLink",
     "UserUserLink", "FriendStatus",
     "UserWordRecord",
-    "UserLibrarySelect"
+    "UserLibrarySelect", "PriorityItem", "UpdatePriorityRequest"
 ]

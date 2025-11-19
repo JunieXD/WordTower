@@ -17,3 +17,6 @@ class Word(WordBase, table=True):
 
 class WordCreate(WordBase):
     pass
+
+class BatchRecognizeRequest(SQLModel):
+    words: list[str]
