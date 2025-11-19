@@ -2,6 +2,7 @@ const DefaultLayout = () => import('@/layouts/DefaultLayout.vue')
 const HomeView = () => import('@/views/HomeView.vue')
 const LoginView = () => import('@/views/LoginView.vue')
 const LibraryView = () => import('@/views/LibraryView.vue')
+const LibraryEditView = () => import('@/views/LibraryEditView.vue')
 const ProfileView = () => import('@/views/ProfileView.vue')
 const NotFoundView = () => import('@/views/NotFoundView.vue')
 const UpgradeView = () => import('@/views/UpgradeView.vue')
@@ -18,7 +19,12 @@ const routes = [
     children: [
       { path: '', redirect: { name: 'home' } },
       { path: 'home', name: 'home', component: HomeView },
-      { path: 'library', name: 'library', component: LibraryView },
+      {
+        path: 'library',
+        name: 'library',
+        component: LibraryView,
+      },
+      { path: 'library/edit/:id', name: 'library-edit', component: LibraryEditView },
       { path: 'upgrade', name: 'upgrade', component: UpgradeView },
       { path: 'leaderboard', name: 'leaderboard', component: LeaderboardView },
       { path: 'profile', name: 'profile', component: ProfileView },

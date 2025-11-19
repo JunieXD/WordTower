@@ -38,6 +38,12 @@ const headerConfig = computed(() => {
         rightAction: null,
       }
 
+    case 'library-edit':
+      return {
+        title: '编辑词库',
+        rightAction: null,
+      }
+
     default:
       return {
         title: 'WordTower',
