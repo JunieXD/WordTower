@@ -1,9 +1,9 @@
 <template>
   <div class="flex flex-col h-full overflow-hidden">
     <!-- 顶部筛选栏 -->
-    <div class="shrink-0 px-4 py-3">
+    <div class="shrink-0 px-8 py-3">
       <!-- 词库筛选 -->
-      <div class="flex gap-1 overflow-x-auto justify-center">
+      <div class="flex gap-1 overflow-x-auto justify-start md:justify-center">
         <Button
           :variant="activeLibrary === library.key ? 'default' : 'outline'"
           v-for="library in libraries"
@@ -17,7 +17,7 @@
     </div>
 
     <!-- 排行榜内容区域 - 可滚动 -->
-    <div ref="scrollContainer" class="flex-1 overflow-y-auto px-4 py-4 pb-24 lg:pb-4">
+    <div ref="scrollContainer" class="flex-1 overflow-y-auto px-8 py-4 pb-24 lg:pb-4">
       <!-- 前三名特殊展示 -->
       <div class="mb-6 space-y-4">
         <TopRankCard v-for="user in topThree" :key="user.rank" :user="user" :rank="user.rank" />

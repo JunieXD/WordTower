@@ -55,7 +55,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="flex flex-col p-6 h-screen items-center gap-4">
+  <div class="flex flex-col p-8 h-screen items-center gap-4">
     <!-- 金币显示 -->
     <Card class="w-full max-w-md rounded-lg py-2">
       <CardHeader class="gap-0">

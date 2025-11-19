@@ -58,7 +58,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="flex flex-col gap-6 p-4 h-screen rounded-lg justify-center items-center">
+  <div class="flex flex-col gap-6 p-8 h-screen rounded-lg justify-center items-center">
     <Item variant="muted" class="m-2 mt-4 w-full max-w-md">
       <ItemMedia class="self-center!">
         <div
