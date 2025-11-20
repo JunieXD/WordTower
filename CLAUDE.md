@@ -142,7 +142,7 @@ To enable PWA:
 
 The dev server uses SSL certificates for HTTPS:
 
-- Certificate files: `localhost+2-key.pem` and `localhost+2.pem` in project root
+- Certificate files: `localhost+3-key.pem` and `localhost+3.pem` in project root
 - Required for PWA testing and secure contexts
 - Generate with mkcert if missing
 - Server runs on `0.0.0.0:5173` with HTTPS

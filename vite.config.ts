@@ -7,8 +7,8 @@ import tailwindcss from '@tailwindcss/vite'
 import fs from 'fs'
 import path from 'path'
 
-const keyPath = path.resolve(__dirname, 'localhost+2-key.pem')
-const certPath = path.resolve(__dirname, 'localhost+2.pem')
+const keyPath = path.resolve(__dirname, 'localhost+3-key.pem')
+const certPath = path.resolve(__dirname, 'localhost+3.pem')
 
 // https://vite.dev/config/
 export default defineConfig({
