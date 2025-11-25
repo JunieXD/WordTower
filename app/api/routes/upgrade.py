@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from app.db.database import SessionDep
-from app.api.api_responses import success_response, unprocessable_entity_response
+from app.api.api_responses import success_response, payment_required_response
 from app.api.dependencies import get_current_user
 from app.db.upgrade import user_upgrade_hp, user_upgrade_attack, user_upgrade_crit_rate
 from app.models.user import User
@@ -33,20 +33,20 @@ async def get_values(session: SessionDep, user: User = Depends(get_current_user)
 @router.post("/max_hp")
 async def upgrade_hp(session: SessionDep, user: User = Depends(get_current_user)):
     if user.coins < upgrade_hp_coins:
-        return unprocessable_entity_response(message="金币不足")
+        return payment_required_response(message="金币不足")
     user_upgrade_hp(session, user.username, upgrade_hp_coins, upgrade_hp_value)
     return success_response(message="升级成功")
 
 @router.post("/attack")
 async def upgrade_attack(session: SessionDep, user: User = Depends(get_current_user)):
     if user.coins < upgrade_attack_coins:
-        return unprocessable_entity_response(message="金币不足")
+        return payment_required_response(message="金币不足")
     user_upgrade_attack(session, user.username, upgrade_attack_coins, upgrade_attack_value)
     return success_response(message="升级成功")
 
 @router.post("/crit_rate")
 async def upgrade_crit_rate(session: SessionDep, user: User = Depends(get_current_user)):
     if user.coins < upgrade_crit_rate_coins:
-        return unprocessable_entity_response(message="金币不足")
+        return payment_required_response(message="金币不足")
     user_upgrade_crit_rate(session, user.username, upgrade_crit_rate_coins, upgrade_crit_rate_value)
     return success_response(message="升级成功")

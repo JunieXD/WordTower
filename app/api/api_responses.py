@@ -149,6 +149,27 @@ def unauthorized_response(
     )
 
 
+def payment_required_response(
+    message: str = "金币不足",
+    error_code: Optional[str] = "PAYMENT_REQUIRED",
+    details: Any = None
+) -> JSONResponse:
+    """
+    402 Payment Required - 需要支付
+    用于: 金币不足, 需要充值或消费不足
+    """
+    response_data = APIErrorResponseModel(
+        success=False,
+        message=message,
+        error_code=error_code,
+        details=details
+    ).model_dump(exclude_none=True)
+    return JSONResponse(
+        status_code=402,
+        content=response_data
+    )
+
+
 def forbidden_response(
     message: str = "禁止访问",
     error_code: Optional[str] = "FORBIDDEN",

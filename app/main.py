@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from app.api.routes import auth
-from app.api.routes import library, word, upgrade
+from app.api.routes import library, word, upgrade, question
 from fastapi.middleware.cors import CORSMiddleware
 from app.utils.cors import origins
 
@@ -18,3 +18,4 @@ app.include_router(auth.router)
 app.include_router(library.router)
 app.include_router(upgrade.router)
 app.include_router(word.router)
+app.include_router(question.router)

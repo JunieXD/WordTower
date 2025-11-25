@@ -1,6 +1,9 @@
 from sqlmodel import Session, select, func, case
 from app.models.word import Word
-
+from app.models.user import User
+from app.models.user_library_select import UserLibrarySelect
+from app.models.library_word_link import LibraryWordLink
+import random
 
 def search_word_top_10(session: Session, q: str) -> list[Word]:
     """按匹配度排序搜索单词"""
@@ -38,3 +41,20 @@ def batch_recognize_(session: Session, words: list[str]) -> list[Word]:
         return []
     statement = select(Word).where(Word.text.in_(words))
     return session.exec(statement).all()
+
+def get_user_selected_words(session: Session, user: User) -> list[Word]:
+    """获取用户选择的所有单词（去重）"""
+    statement = (
+        select(Word)
+        .join(LibraryWordLink, Word.id == LibraryWordLink.word_id)
+        .join(UserLibrarySelect, LibraryWordLink.library_id == UserLibrarySelect.library_id)
+        .where(UserLibrarySelect.user_id == user.id)
+        .distinct()
+    )
+    return session.exec(statement).all()
+
+def random_select_word_by_type(session: Session, user: User, num: int) -> list[Word]:
+    all_words = get_user_selected_words(session, user)
+    if num > len(all_words):
+        return []
+    return random.sample(all_words, num)
