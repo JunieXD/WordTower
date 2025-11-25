@@ -5,7 +5,7 @@
         <CardHeader>
           <CardTitle
             class="text-6xl text-center font-bold text-transparent bg-clip-text bg-linear-to-br from-blue-500 via-purple-500 to-pink-500"
-            >{{ profile?.maxFloor ?? 0 }}</CardTitle
+            >{{ profile?.max_floor ?? 0 }}</CardTitle
           >
         </CardHeader>
         <CardContent>
@@ -14,7 +14,13 @@
       </Card>
     </div>
     <div class="w-full max-w-md flex-1 flex flex-col justify-center gap-4">
-      <Button variant="outline" class="w-full text-md h-12"> 开始闯塔 </Button>
+      <Button
+        variant="outline"
+        class="w-full text-md h-12"
+        @click="$router.push({ name: 'combat' })"
+      >
+        开始闯塔
+      </Button>
     </div>
   </div>
 </template>

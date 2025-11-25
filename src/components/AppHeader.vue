@@ -44,6 +44,12 @@ const headerConfig = computed(() => {
         rightAction: null,
       }
 
+    case 'combat':
+      return {
+        title: '战斗',
+        rightAction: null,
+      }
+
     default:
       return {
         title: 'WordTower',
