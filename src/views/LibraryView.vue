@@ -7,6 +7,7 @@
       item-key="id"
       handle=".drag-handle"
       class="flex flex-col gap-4 w-full max-w-md"
+      v-if="selectedLibraries.length > 0"
     >
       <template #item="{ element: item }">
         <Card class="rounded-lg gap-1 py-4">

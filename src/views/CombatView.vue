@@ -26,14 +26,33 @@
       </div>
       <div class="h-1/10"></div>
     </div>
+    <div class="h-2"></div>
     <!-- 答题区域 -->
-    <div class="flex-1 flex flex-col"></div>
+    <div class="flex-1 flex flex-col p-4 gap-4 overflow-auto mb-16">
+      <component
+        :is="conponentMap[combatStore.currentQuestion?.type ?? 'loading']"
+        :question="combatStore.currentQuestion"
+      ></component>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onBeforeMount } from 'vue'
+import type { Component } from 'vue'
 import gsap from 'gsap'
+import { useCombatStore, type QuestionType } from '@/stores/combat'
+import QuestionChoice from '@/components/Question/QuestionChoice.vue'
+import QuestionInput from '@/components/Question/QuestionInput.vue'
+import QuestionSort from '@/components/Question/QuestionSort.vue'
+import Loading from '@/components/Question/Loading.vue'
+
+const conponentMap: Record<QuestionType | 'loading', Component> = {
+  context_guess: QuestionChoice,
+  cloze_test: QuestionInput,
+  keyword_translation: QuestionSort,
+  loading: Loading,
+}
 
 const playerInit = () => {
   playerHide.value = null
@@ -120,6 +139,15 @@ const enemyHurtAnimation = '/src/assets/character/DemonKin/Hurt.gif'
 const enemyDeathAnimation = '/src/assets/character/DemonKin/Death.gif'
 const enemyHide = ref<string | null>(null)
 const currentEnemyAnimation = ref(enemyIdleAnimation)
+
+const combatStore = useCombatStore()
+
+onBeforeMount(() => {
+  // 只有当 store 中没有数据时才初始化，防止刷新重复初始化
+  if (!combatStore.combatInfo) {
+    combatStore.initCombatInfo()
+  }
+})
 
 onMounted(() => {
   playerInit()
