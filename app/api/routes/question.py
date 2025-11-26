@@ -22,6 +22,8 @@ async def generate_question(session: SessionDep, floor: int, user: User = Depend
     if not words:
         return not_found_response(message="没有找到足够的单词")
     question = await generate_question_(session, type, words)
+    if not question:
+        return internal_server_error_response(message="题目生成失败")
     return success_response(message="题目生成成功", data=jsonable_encoder(question))
 
 @router.post("/check")

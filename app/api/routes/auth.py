@@ -11,9 +11,9 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 @router.post("/register")
 async def register(session: SessionDep, user_in: UserCreate):
-    user = create_user(session, user_in)
-    if user is None:
+    if get_user_by_username(session, user_in.username):
         return conflict_response(message="用户已存在")
+    create_user(session, user_in)
     return created_response(message="注册成功")
 
 @router.post("/login")

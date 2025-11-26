@@ -1,10 +1,15 @@
 import os
-
+import random
 
 def get_question_type_weights(floor: int) -> list[int]:
     """根据楼层返回题目类型权重"""
     return [100 - min(floor // 10 * 2, 20), min(floor // 10, 10), min(floor // 10, 10)]
 
+def get_enemy_hp(floor: int) -> int:
+    return int(floor * random.random()) + 10
+
+def get_enemy_attack(floor: int) -> int:
+    return int(floor * random.random()) + 10
 
 class Settings:
     DATABASE_URL: str = os.getenv(

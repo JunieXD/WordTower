@@ -4,25 +4,16 @@ def get_question_prompt(type: str, target_word: str | list[str]) -> str | None:
     if type == settings.QUESTION_TYPES[0]:
         return f"""
 ## Role
-You are a strict **JSON Generation API**. You are NOT a conversational assistant. Your only purpose is to receive input and output valid JSON.
+You are a strict JSON API. Output ONLY valid JSON. Do not output markdown blocks (```json), conversational text, or internal thinking. Start with `{{` and end with `}}`.
 
 ## Task
 Generate a vocabulary quiz for the target word: "{target_word}".
 
 ## Constraints
-1. **Narrative:** Write a short, engaging story or paragraph (approx. 100 words) containing the target word. The text must be in **English**.
-2. **Context Clues:** The sentence structure and surrounding context must strongly imply the meaning of the target word.
-3. **Language:** - The `story` must be in English.
-   - The `options` definitions must be in **Simplified Chinese**.
-   - The `explanation` must be in **Simplified Chinese**.
-4. **Options:** Provide 4 distinct options (A, B, C, D). One is the correct definition; three are plausible distractors.
-5. **Format:** Output strictly valid JSON only, no markdown formatting.
-
-## Output Rules (CRITICAL)
-1.  **NO conversational text:** Do not say "Here is the JSON", "Wait", "Let me correct", or "I found a mistake".
-2.  **NO internal monologue:** Perform all reasoning, shuffling, and checking silently.
-3.  **Start and End:** The output must start strictly with `{{` and end with `}}`.
-4.  **Valid JSON:** Ensure the JSON is parseable without errors.
+1.  **Story:** Write an engaging English story (~100 words). The target word must appear **EXACTLY ONCE**.
+2.  **Context:** The surrounding context must strongly imply the meaning of the word (strong inference clues).
+3.  **Language:** Story in English. Options and Explanation in **Simplified Chinese**.
+4.  **Components:** 4 options (1 correct, 3 distractors).
 
 ## JSON Structure
 {{
@@ -35,13 +26,13 @@ Generate a vocabulary quiz for the target word: "{target_word}".
     "D": "String (Chinese definition)"
   }},
   "correct_option": "String (A/B/C/D)",
-  "explanation": "String (Chinese explanation of the context clues)"
+  "explanation": "String (Chinese explanation of context clues)"
 }}
 """
     elif type == settings.QUESTION_TYPES[1]:
         return f"""
 ## Role
-You are a strict **JSON Generation API**. You are NOT a conversational assistant. Your only purpose is to receive input and output valid JSON.
+You are a strict JSON API. Output ONLY valid JSON. Do not output markdown blocks (```json), conversational text, or internal thinking. Start with `{{` and end with `}}`.
 
 ## Task
 Create a "Fill-in-the-Blanks" paragraph quiz using ALL of the following target words: {target_word}.
@@ -72,7 +63,7 @@ Create a "Fill-in-the-Blanks" paragraph quiz using ALL of the following target w
     elif type == settings.QUESTION_TYPES[2]:
         return f"""
 ## Role
-You are a strict **JSON Generation API**. You are NOT a conversational assistant. Your only purpose is to receive input and output valid JSON.
+You are a strict JSON API. Output ONLY valid JSON. Do not output markdown blocks (```json), conversational text, or internal thinking. Start with `{{` and end with `}}`.
 
 ## Task
 Create a translation challenge based on the target word: "{target_word}".
@@ -102,7 +93,7 @@ Create a translation challenge based on the target word: "{target_word}".
 def get_answer_check_prompt(target_word: str, chinese_sentence: str, user_input: str) -> str:
     return f"""
 ## Role
-You are a **warm, encouraging, and insightful** ESL writing tutor. Your goal is not just to grade, but to motivate the student to improve.
+You are a strict JSON API. Output ONLY valid JSON. Do not output markdown blocks (```json), conversational text, or internal thinking. Start with `{{` and end with `}}`.
 
 ## Task
 Evaluate the user's translation based on the `target_word` and the original `chinese_sentence`.
