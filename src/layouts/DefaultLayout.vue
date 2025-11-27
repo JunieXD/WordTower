@@ -6,7 +6,9 @@ import { SidebarProvider } from '@/components/ui/sidebar'
 </script>
 
 <template>
-  <div class="layout-container">
+  <div
+    class="flex overflow-hidden h-screen supports-[height:100dvh]:h-dvh supports-[(-webkit-touch-callout:none)]:h-[-webkit-fill-available]"
+  >
     <!-- 侧边栏：仅桌面端显示 -->
     <div class="hidden lg:block">
       <SidebarProvider>
@@ -23,20 +25,3 @@ import { SidebarProvider } from '@/components/ui/sidebar'
     </main>
   </div>
 </template>
-
-<style scoped>
-.layout-container {
-  display: flex;
-  overflow: hidden;
-  /* 使用动态视口高度，适配移动浏览器地址栏 */
-  height: 100vh; /* 回退方案 */
-  height: 100dvh; /* 动态视口高度，推荐 */
-}
-
-/* 如果浏览器不支持 dvh，使用 -webkit-fill-available 作为备选 */
-@supports (-webkit-touch-callout: none) {
-  .layout-container {
-    height: -webkit-fill-available;
-  }
-}
-</style>

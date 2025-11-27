@@ -8,7 +8,9 @@ const items = [
 ]
 </script>
 <template>
-  <nav class="footer-nav">
+  <nav
+    class="fixed inset-x-0 bottom-0 z-10 flex h-16 items-center justify-around border-t border-gray-200 bg-white pb-[env(safe-area-inset-bottom)] text-gray-600"
+  >
     <RouterLink
       v-for="item in items"
       :key="item.url"
@@ -28,22 +30,3 @@ const items = [
     </RouterLink>
   </nav>
 </template>
-
-<style scoped>
-.footer-nav {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background-color: white;
-  border-top: 1px solid #e5e7eb;
-  display: flex;
-  justify-content: space-around;
-  align-items: center;
-  height: 4rem; /* 64px */
-  color: #4b5563;
-  z-index: 10;
-  /* 适配底部安全区域（如 iPhone 的 Home Indicator） */
-  padding-bottom: env(safe-area-inset-bottom);
-}
-</style>
