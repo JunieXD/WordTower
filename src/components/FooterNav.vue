@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Icon } from '@iconify/vue'
 const items = [
   { title: '主页', url: 'home', icon: 'mdi:home-variant-outline' },
   { title: '词库', url: 'library', icon: 'mdi:bookshelf' },

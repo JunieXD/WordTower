@@ -27,15 +27,15 @@
 
 <script setup lang="ts">
 import { useUserProfileStore } from '@/stores/userProfile'
-import { ref, onMounted } from 'vue'
-import type { UserProfile } from '@/stores/userProfile'
+import { onMounted } from 'vue'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { storeToRefs } from 'pinia'
+
 const userProfileStore = useUserProfileStore()
+const { profile } = storeToRefs(userProfileStore)
 
-const profile = ref<UserProfile | null>(null)
-
-onMounted(async () => {
-  profile.value = await userProfileStore.getProfile()
+onMounted(() => {
+  userProfileStore.getProfile()
 })
 </script>

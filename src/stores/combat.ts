@@ -48,21 +48,90 @@ export interface Question {
   content: QuestionContent0 | QuestionContent1 | QuestionContent2
 }
 
+export interface CheckoutInfo {
+  current_floor: number
+  exp_gained: number
+  coins_gained: number
+}
+
 export const useCombatStore = defineStore('combat', () => {
   const combatInfo = ref<CombatInfo | null>(null)
   const currentQuestion = ref<Question | null>(null)
-  async function initCombatInfo() {
-    const res = await request.get('/api/combat/combat_info')
-    combatInfo.value = res.data.data as CombatInfo
-    const questionRes = await request.post(
-      `/api/question/generate/${combatInfo.value?.current_floor}`,
-    )
+  const checkoutInfo = ref<CheckoutInfo | null>(null)
+
+  // 累计获得的经验和金币（本次闯塔）
+  const totalExp = ref(0)
+  const totalCoins = ref(0)
+
+  async function fetchQuestion() {
+    currentQuestion.value = null
+    const questionRes = await request.post('/api/question/generate')
     currentQuestion.value = questionRes.data.data as Question
+  }
+
+  async function StartCombat() {
+    const res = await request.post('/api/combat/start')
+    combatInfo.value = res.data.data as CombatInfo
+  }
+
+  // 计算本次挑战获得的经验和金币（根据层数）
+  function calculateRewards() {
+    const floor = combatInfo.value?.current_floor ?? 1
+    return {
+      exp: floor * 10,
+      coins: floor * 5,
+    }
+  }
+
+  // 完成一次挑战（击败怪物），累加经验和金币，继续下一层
+  async function CompleteCombat() {
+    const rewards = calculateRewards()
+    totalExp.value += rewards.exp
+    totalCoins.value += rewards.coins
+
+    await request.post('/api/combat/end', {
+      next: true,
+      end_hp: combatInfo.value?.player_hp,
+      exp_gained: rewards.exp,
+      coins_gained: rewards.coins,
+    })
+  }
+
+  // 结束闯塔（玩家死亡或主动退出）
+  async function EndCombat() {
+    // 保存结算信息
+    checkoutInfo.value = {
+      current_floor: combatInfo.value?.current_floor ?? 0,
+      exp_gained: totalExp.value,
+      coins_gained: totalCoins.value,
+    }
+
+    await request.post('/api/combat/end', {
+      next: false,
+      end_hp: combatInfo.value?.player_hp,
+      exp_gained: 0,
+      coins_gained: 0,
+    })
+
+    // 清理状态
+    combatInfo.value = null
+    currentQuestion.value = null
+    totalExp.value = 0
+    totalCoins.value = 0
+  }
+
+  function clearCheckout() {
+    checkoutInfo.value = null
   }
 
   return {
     combatInfo,
     currentQuestion,
-    initCombatInfo,
+    checkoutInfo,
+    StartCombat,
+    fetchQuestion,
+    CompleteCombat,
+    EndCombat,
+    clearCheckout,
   }
 })

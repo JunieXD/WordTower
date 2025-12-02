@@ -10,7 +10,12 @@ const router = useRouter()
 const confirmRef = ref<InstanceType<typeof ConfirmDialog>>()
 const combatStore = useCombatStore()
 
-const handleBack = async () => {
+const currentFloorText = computed(() => {
+  const floor = combatStore.combatInfo?.current_floor
+  return floor !== undefined ? `第 ${floor} 层` : ''
+})
+
+const handleAttackBack = async () => {
   const ok = await confirmRef.value?.open({
     title: '退出战斗',
     description: '确认要退出战斗吗？进度会保存到当前层。',
@@ -18,6 +23,10 @@ const handleBack = async () => {
     actionText: '确定',
   })
   if (!ok) return
+  router.push({ name: 'home' })
+}
+
+const handleBack = async () => {
   router.push({ name: 'home' })
 }
 
@@ -59,7 +68,13 @@ const headerConfig = computed(() => {
       return {
         title: '战斗',
         leftAction: 'back',
-        middle: '第 ' + combatStore.combatInfo?.current_floor + ' 层',
+        middle: currentFloorText.value,
+      }
+
+    case 'checkout':
+      return {
+        title: '结算',
+        leftAction: 'back',
       }
 
     default:
@@ -74,8 +89,8 @@ const headerConfig = computed(() => {
   <header class="grid grid-cols-3 items-center px-8 py-4 border-b border-border bg-white">
     <div class="flex items-center gap-3">
       <button
-        v-if="headerConfig.leftAction === 'back' && route.name !== 'home'"
-        @click="handleBack"
+        v-if="headerConfig.leftAction === 'back'"
+        @click="route.name === 'combat' ? handleAttackBack() : handleBack()"
         class="hover:bg-gray-100 rounded-md transition-colors"
         aria-label="返回"
       >

@@ -8,6 +8,7 @@ const NotFoundView = () => import('@/views/NotFoundView.vue')
 const UpgradeView = () => import('@/views/UpgradeView.vue')
 const LeaderboardView = () => import('@/views/LeaderboardView.vue')
 const CombatView = () => import('@/views/CombatView.vue')
+const CheckoutView = () => import('@/views/CheckoutView.vue')
 const CombatLayout = () => import('@/layouts/CombatLayout.vue')
 import { createRouter, createWebHistory } from 'vue-router'
 import { useUserProfileStore } from '@/stores/userProfile'
@@ -36,7 +37,10 @@ const routes = [
     path: '/combat',
     component: CombatLayout,
     meta: { requiresAuth: true },
-    children: [{ path: '', name: 'combat', component: CombatView }],
+    children: [
+      { path: '', name: 'combat', component: CombatView },
+      { path: 'checkout', name: 'checkout', component: CheckoutView },
+    ],
   },
   { path: '/login', name: 'login', component: LoginView },
   {

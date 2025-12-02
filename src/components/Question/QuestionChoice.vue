@@ -11,7 +11,7 @@
       variant="outline"
       :class="getButtonClass(option)"
       @click="handleOptionClick(option)"
-      :disabled="isAnswered"
+      :disabled="isAnswered || isInCooldown"
     >
       <p class="text-md">{{ props.question?.content?.options?.[option] }}</p>
     </Button>
@@ -23,7 +23,7 @@
 </template>
 
 <script setup lang="ts">
-import { defineProps, computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 
@@ -33,6 +33,8 @@ const props = defineProps({
     required: true,
   },
 })
+
+const emit = defineEmits(['isCorrect'])
 
 const story = computed(() => {
   return props.question?.content?.story
@@ -65,10 +67,13 @@ const options = ['A', 'B', 'C', 'D'] as const
 const selectedOption = ref<string | null>(null)
 const isAnswered = ref(false)
 const showExplanation = ref(false)
+const isInCooldown = ref(false)
+
+let cooldownTimer: number | null = null
 
 // 处理选项点击
 const handleOptionClick = (option: string) => {
-  if (isAnswered.value) return
+  if (isAnswered.value || isInCooldown.value) return
 
   selectedOption.value = option
   const isCorrect = option === correct_option.value
@@ -77,13 +82,28 @@ const handleOptionClick = (option: string) => {
     // 答对：显示绿色背景和解析
     isAnswered.value = true
     showExplanation.value = true
+    emit('isCorrect', true)
   } else {
-    // 答错：显示红色背景，1秒后恢复
-    setTimeout(() => {
+    // 答错：显示红色背景，2秒后恢复
+    if (cooldownTimer) {
+      clearTimeout(cooldownTimer)
+    }
+    isInCooldown.value = true
+    cooldownTimer = window.setTimeout(() => {
       selectedOption.value = null
-    }, 1000)
+      isInCooldown.value = false
+      cooldownTimer = null
+    }, 2000)
+    emit('isCorrect', false)
   }
 }
+
+onBeforeUnmount(() => {
+  if (cooldownTimer) {
+    clearTimeout(cooldownTimer)
+    cooldownTimer = null
+  }
+})
 
 // 获取按钮样式类
 const getButtonClass = (option: string) => {
