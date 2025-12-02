@@ -4,7 +4,7 @@ from .level import Level
 from .prop import Prop
 from .question import Question
 from .word import Word
-from .challenge import Challenge, ChallengeStatus
+from .challenge import Challenge, ChallengeStatus, EndChallenge
 from .challenge_buff_link import ChallengeBuffLink
 from .challenge_prop_link import ChallengePropLink
 from .level_question_link import LevelQuestionLink
@@ -22,7 +22,7 @@ __all__ = [
     "Prop",
     "Question",
     "Word",
-    "Challenge", "ChallengeStatus",
+    "Challenge", "ChallengeStatus", "EndChallenge",
     "ChallengeBuffLink",
     "ChallengePropLink",
     "LevelQuestionLink",

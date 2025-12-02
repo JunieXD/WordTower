@@ -23,3 +23,9 @@ class Challenge(SQLModel, table=True):
     status: ChallengeStatus = Field(default=ChallengeStatus.IN_PROGRESS, sa_column=Column(String))
     exp_gained: int = Field(default=0)
     coins_gained: int = Field(default=0)
+
+class EndChallenge(SQLModel):
+    next: bool
+    end_hp: int
+    exp_gained: int
+    coins_gained: int

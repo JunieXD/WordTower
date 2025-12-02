@@ -16,3 +16,5 @@ class QuestionCheck(SQLModel):
     chinese_sentence: str
     user_input: str
     
+class QuestionAnswer(SQLModel):
+    is_correct: bool

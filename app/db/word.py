@@ -58,3 +58,7 @@ def random_select_word_by_type(session: Session, user: User, num: int) -> list[W
     if num > len(all_words):
         return []
     return random.sample(all_words, num)
+
+def get_word_by_text(session: Session, text: str) -> Word | None:
+    statement = select(Word).where(Word.text == text)
+    return session.exec(statement).one_or_none()

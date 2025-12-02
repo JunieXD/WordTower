@@ -1,5 +1,5 @@
 from sqlmodel import Session, select
-from app.models import User, UserCreate
+from app.models import User, UserCreate, UserWordRecord, Word
 from app.utils.security import hash_password
 from datetime import datetime, timezone
 
@@ -23,3 +23,12 @@ def set_user_last_login(session: Session, username: str) -> None:
     if user:
         user.last_login = datetime.now(timezone.utc)
         session.commit()
+
+def insert_user_word_record(session: Session, user: User, word: Word, is_correct: bool) -> None:
+    user_word_record = UserWordRecord(user_id=user.id, word_id=word.id, correct=is_correct)
+    session.add(user_word_record)
+    session.commit()
+    
+def update_user_max_floor(session: Session, user: User, max_floor: int) -> None:
+    user.max_floor = max(user.max_floor, max_floor)
+    session.commit()
