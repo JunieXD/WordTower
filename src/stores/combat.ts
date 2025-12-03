@@ -65,8 +65,14 @@ export const useCombatStore = defineStore('combat', () => {
 
   async function fetchQuestion() {
     currentQuestion.value = null
-    const questionRes = await request.post('/api/question/generate')
+    const questionRes = await request.post('/api/question/generate', {}, { timeout: 15000 })
     currentQuestion.value = questionRes.data.data as Question
+  }
+
+  async function answerQuestion(questionId: number, isCorrect: boolean) {
+    await request.post(`/api/question/answer/${questionId}`, {
+      is_correct: isCorrect,
+    })
   }
 
   async function StartCombat() {
@@ -97,7 +103,7 @@ export const useCombatStore = defineStore('combat', () => {
     })
   }
 
-  // 结束闯塔（玩家死亡或主动退出）
+  // 结束闯塔（玩家死亡）
   async function EndCombat() {
     // 保存结算信息
     checkoutInfo.value = {
@@ -130,6 +136,7 @@ export const useCombatStore = defineStore('combat', () => {
     checkoutInfo,
     StartCombat,
     fetchQuestion,
+    answerQuestion,
     CompleteCombat,
     EndCombat,
     clearCheckout,

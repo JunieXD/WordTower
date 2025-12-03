@@ -89,6 +89,10 @@ const showContinueButton = ref(false)
 const router = useRouter()
 
 const handleIsCorrect = async (isCorrect: boolean) => {
+  if (combatStore.currentQuestion) {
+    void combatStore.answerQuestion(combatStore.currentQuestion.id, isCorrect)
+  }
+
   if (isCorrect) {
     playerAttack()
     showContinueButton.value = true

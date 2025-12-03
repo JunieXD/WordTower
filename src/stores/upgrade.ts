@@ -61,7 +61,6 @@ export const useUpgradeStore = defineStore('upgrade', () => {
         duration: 2000,
       })
       await userProfileStore.getProfile(true)
-      console.log(userProfileStore.profile)
     } else {
       notificationStore.addNotification({
         title: '升级失败',

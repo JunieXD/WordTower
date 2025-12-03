@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import request from '@/utils/request'
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import {
   Item,
   ItemContent,
@@ -23,6 +23,16 @@ const confirmRef = ref<InstanceType<typeof ConfirmDialog>>()
 const router = useRouter()
 const notificationStore = useNotificationStore()
 const userProfileStore = useUserProfileStore()
+
+const level = computed(() => {
+  const exp = userProfileStore.profile?.exp ?? 0
+  return Math.floor(exp / 100)
+})
+
+const currentLevelExp = computed(() => {
+  const exp = userProfileStore.profile?.exp ?? 0
+  return exp % 100
+})
 
 const logout = async () => {
   try {
@@ -88,14 +98,10 @@ onMounted(async () => {
           {{ userProfileStore.profile?.nickname ?? userProfileStore.profile?.username ?? '用户名' }}
         </ItemTitle>
         <div class="flex flex-row gap-10">
-          <ItemDescription> 等级：{{ userProfileStore.profile?.exp ?? 0 }} </ItemDescription>
+          <ItemDescription> 等级：{{ level }} </ItemDescription>
           <ItemDescription> 金币：{{ userProfileStore.profile?.coins ?? 0 }} </ItemDescription>
         </div>
-        <Progress
-          :model-value="userProfileStore.profile?.exp ?? 0"
-          :label="`${userProfileStore.profile?.exp ?? 0} / 100`"
-          show-label
-        />
+        <Progress :model-value="currentLevelExp" :label="`${currentLevelExp} / 100`" show-label />
       </ItemContent>
       <ItemActions>
         <Button variant="ghost" size="icon" class="rounded-full">
