@@ -27,14 +27,17 @@ async def generate_question_(session: Session, type: str, target_words: list[Wor
     prompt = get_question_prompt(type, [word.text for word in target_words])
     if prompt is None:
         return None
-    try:
-        question = Question(type=type, content=await generate_text(prompt))
-        question = create_question_(session, question)
-        for word in target_words:
-            insert_question_word_link(session, question, word)
-        return question
-    except Exception:
-        return None
+
+    max_retries = 2
+    for attempt in range(max_retries + 1):
+        try:
+            question = Question(type=type, content=await generate_text(prompt))
+            question = create_question_(session, question)
+            return question
+        except Exception:
+            if attempt == max_retries:
+                return None
+            continue
 
 def random_select_question_type(floor: int) -> str:
     weights = get_question_type_weights(floor)

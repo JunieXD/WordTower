@@ -57,7 +57,13 @@ def end_challenge(session: Session, user: User, end_hp: int, exp_gained: int, co
     challenge.end_hp = end_hp
     challenge.exp_gained = exp_gained
     challenge.coins_gained = coins_gained
+
+    # 将奖励加到用户属性
+    user.exp += exp_gained
+    user.coins += coins_gained
+
     session.add(challenge)
+    session.add(user)
     session.commit()
     session.refresh(challenge)
     return challenge
