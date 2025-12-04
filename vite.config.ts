@@ -4,11 +4,11 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import AutoImport from 'unplugin-auto-import/vite'
 import tailwindcss from '@tailwindcss/vite'
-import fs from 'fs'
-import path from 'path'
+// import fs from 'fs'
+// import path from 'path'
 
-const keyPath = path.resolve(__dirname, 'localhost+3-key.pem')
-const certPath = path.resolve(__dirname, 'localhost+3.pem')
+// const keyPath = path.resolve(__dirname, 'localhost+3-key.pem')
+// const certPath = path.resolve(__dirname, 'localhost+3.pem')
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -92,9 +92,10 @@ export default defineConfig({
         changeOrigin: true,
       },
     },
-    https: {
-      key: fs.readFileSync(keyPath),
-      cert: fs.readFileSync(certPath),
-    },
+    allowedHosts: ['wordtower.juniexd.cn'],
+    // https: {
+    //   key: fs.readFileSync(keyPath),
+    //   cert: fs.readFileSync(certPath),
+    // },
   },
 })

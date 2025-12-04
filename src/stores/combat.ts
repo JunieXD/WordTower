@@ -48,6 +48,14 @@ export interface Question {
   content: QuestionContent0 | QuestionContent1 | QuestionContent2
 }
 
+// 关键词翻译 / 句子批改结果
+export interface QuestionCheckResult {
+  is_correct: boolean
+  score: number
+  feedback: string
+  better_translation: string
+}
+
 export interface CheckoutInfo {
   current_floor: number
   exp_gained: number
@@ -67,6 +75,16 @@ export const useCombatStore = defineStore('combat', () => {
     currentQuestion.value = null
     const questionRes = await request.post('/api/question/generate', {}, { timeout: 15000 })
     currentQuestion.value = questionRes.data.data as Question
+  }
+
+  // 检查关键词翻译 / 句子翻译题的答案
+  async function checkKeywordTranslation(payload: {
+    target_word: string
+    chinese_sentence: string
+    user_input: string
+  }): Promise<QuestionCheckResult> {
+    const res = await request.post('/api/question/check', payload, { timeout: 15000 })
+    return res.data.data as QuestionCheckResult
   }
 
   async function answerQuestion(questionId: number, isCorrect: boolean) {
@@ -136,6 +154,7 @@ export const useCombatStore = defineStore('combat', () => {
     checkoutInfo,
     StartCombat,
     fetchQuestion,
+    checkKeywordTranslation,
     answerQuestion,
     CompleteCombat,
     EndCombat,

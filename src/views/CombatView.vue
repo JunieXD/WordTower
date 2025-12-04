@@ -39,9 +39,8 @@
         :is="conponentMap[combatStore.currentQuestion?.type ?? 'loading']"
         :question="combatStore.currentQuestion"
         @is-correct="handleIsCorrect"
+        @continue="handleContinue"
       ></component>
-      <!-- 继续按钮 -->
-      <Button v-if="showContinueButton" @click="handleContinue" variant="outline"> 继续 </Button>
     </div>
   </div>
 </template>
@@ -57,12 +56,11 @@ import QuestionChoice from '@/components/Question/QuestionChoice.vue'
 import QuestionInput from '@/components/Question/QuestionInput.vue'
 import QuestionSort from '@/components/Question/QuestionSort.vue'
 import Loading from '@/components/Question/Loading.vue'
-import { Button } from '@/components/ui/button'
 
 const conponentMap: Record<QuestionType | 'loading', Component> = {
   context_guess: QuestionChoice,
-  cloze_test: QuestionInput,
-  keyword_translation: QuestionSort,
+  cloze_test: QuestionSort,
+  keyword_translation: QuestionInput,
   loading: Loading,
 }
 
@@ -85,7 +83,6 @@ const enemyHide = ref<string | null>(null)
 const currentEnemyAnimation = ref(enemyIdleAnimation)
 
 const combatStore = useCombatStore()
-const showContinueButton = ref(false)
 const router = useRouter()
 
 const handleIsCorrect = async (isCorrect: boolean) => {
@@ -95,7 +92,6 @@ const handleIsCorrect = async (isCorrect: boolean) => {
 
   if (isCorrect) {
     playerAttack()
-    showContinueButton.value = true
   } else {
     await enemyAttack()
     if (combatStore.combatInfo) {
@@ -108,7 +104,6 @@ const handleIsCorrect = async (isCorrect: boolean) => {
 }
 
 const handleContinue = async () => {
-  showContinueButton.value = false
   if (combatStore.combatInfo) {
     if (combatStore.combatInfo.enemy_hp <= 0) {
       // 完成本次挑战，继续下一层

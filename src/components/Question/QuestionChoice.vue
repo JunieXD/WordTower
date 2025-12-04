@@ -19,6 +19,7 @@
   <Card v-if="showExplanation" class="p-4 bg-green-50 gap-2">
     <p class="text-sm font-semibold text-green-800 mb-2">✓ 回答正确！解析：</p>
     <p class="text-md">{{ explanation }}</p>
+    <Button class="self-start mt-2" variant="outline" @click="handleContinue"> 继续 </Button>
   </Card>
 </template>
 
@@ -34,7 +35,7 @@ const props = defineProps({
   },
 })
 
-const emit = defineEmits(['isCorrect'])
+const emit = defineEmits(['isCorrect', 'continue'])
 
 const story = computed(() => {
   return props.question?.content?.story
@@ -96,6 +97,10 @@ const handleOptionClick = (option: string) => {
     }, 2000)
     emit('isCorrect', false)
   }
+}
+
+const handleContinue = () => {
+  emit('continue')
 }
 
 onBeforeUnmount(() => {
