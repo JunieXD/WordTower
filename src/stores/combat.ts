@@ -73,7 +73,7 @@ export const useCombatStore = defineStore('combat', () => {
 
   async function fetchQuestion() {
     currentQuestion.value = null
-    const questionRes = await request.post('/api/question/generate', {}, { timeout: 15000 })
+    const questionRes = await request.post('/api/question/generate', {}, { timeout: 30000 })
     currentQuestion.value = questionRes.data.data as Question
   }
 
@@ -83,7 +83,7 @@ export const useCombatStore = defineStore('combat', () => {
     chinese_sentence: string
     user_input: string
   }): Promise<QuestionCheckResult> {
-    const res = await request.post('/api/question/check', payload, { timeout: 15000 })
+    const res = await request.post('/api/question/check', payload, { timeout: 30000 })
     return res.data.data as QuestionCheckResult
   }
 
