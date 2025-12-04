@@ -17,7 +17,7 @@ jobs:
       with:
         host: ${{ secrets.HOST }}
         username: ${{ secrets.USERNAME }}
-        key: ${{ secrets.KEY }}
+        password: ${{ secrets.PASSWORD }}
         script: |
           # 前端网站目录
           FRONTEND_PATH="/opt/1panel/www/sites/wt.juniexd.cn/index"
