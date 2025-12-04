@@ -13,6 +13,7 @@ const CombatLayout = () => import('@/layouts/CombatLayout.vue')
 import { createRouter, createWebHistory } from 'vue-router'
 import { useUserProfileStore } from '@/stores/userProfile'
 import { useNotificationStore } from '@/stores/notification'
+import { useLibraryStore } from '@/stores/library'
 
 const routes = [
   {
@@ -70,6 +71,23 @@ router.beforeEach(async (to) => {
         })
         return { name: 'login', query: { redirect: to.fullPath } }
       }
+    }
+  }
+
+  // Combat 页面路由守卫：检查选中的单词数量
+  if (to.name === 'combat') {
+    const libraryStore = useLibraryStore()
+    const notificationStore = useNotificationStore()
+
+    const count = await libraryStore.getSelectedWordsCount()
+    if (count < 10) {
+      notificationStore.addNotification({
+        title: '无法进入闯塔',
+        description: `您选择的单词数量不足（当前 ${count} 个，至少需要 10 个），请先在词库中选择更多单词`,
+        variant: 'destructive',
+        duration: 5000,
+      })
+      return { name: 'library' }
     }
   }
 })

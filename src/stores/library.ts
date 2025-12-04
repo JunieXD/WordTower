@@ -150,6 +150,20 @@ export const useLibraryStore = defineStore('library', () => {
     return { success: res.data.success, message: res.data.message }
   }
 
+  async function getSelectedWordsCount(): Promise<number> {
+    try {
+      const res = await request.get('/api/library/get_selected_words_count')
+      if (res.data.success) {
+        return res.data.data.count as number
+      } else {
+        return 0
+      }
+    } catch (error) {
+      console.error('获取选中单词数量失败:', error)
+      return 0
+    }
+  }
+
   return {
     libraries,
     fetchLibraries,
@@ -162,5 +176,6 @@ export const useLibraryStore = defineStore('library', () => {
     updateLibrary,
     removeLibrary,
     batchUpdateLibraryPriorities,
+    getSelectedWordsCount,
   }
 })
