@@ -9,7 +9,7 @@ async def generate_text(prompt: str) -> Dict[str, Any]:
     response = await client.chat.completions.create(
         model=settings.ARK_API_MODEL_ID,
         messages=[
-            {"role": "system", "content": "You are a strict **JSON Generation API**. You are NOT a conversational assistant. Your only purpose is to receive input and output valid JSON."},
+            {"role": "system", "content": f"You are a strict JSON API. Output ONLY valid JSON. Do not output markdown blocks (```json), conversational text, or internal thinking. Start with `{{` and end with `}}`."},
             {"role": "user", "content": prompt}
         ],
         extra_body={"thinking": {"type": "disabled"}, "temperature": 0.1}

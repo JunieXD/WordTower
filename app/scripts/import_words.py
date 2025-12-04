@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 导入脚本：从 StarDict SQLite 数据库导入单词到 PostgreSQL
-用法: uv run python -m app.scripts.import_words <sqlite_db_path>
+用法: uv run python -m app.scripts.import_words app/scripts/stardict.db
 """
 
 import sys
@@ -269,7 +269,7 @@ def main():
     if len(sys.argv) < 2:
         print("用法: python -m app.scripts.import_words <sqlite_db_path>")
         print("      python -m app.scripts.import_words --clean  # 清理无效单词")
-        print("示例: python -m app.scripts.import_words data/stardict.db")
+        print("示例: python -m app.scripts.import_words app/scripts/stardict.db")
         sys.exit(1)
 
     # 检查是否是清理模式

@@ -17,7 +17,8 @@ async def start_combat(session: SessionDep, user_in: User = Depends(get_current_
         challenge = new_challenge(session, user_in, new_level(session, 1))
         if not challenge:
             return internal_server_error_response(message="战斗开始失败")
-    player_hp = get_last_hp(session, user_in) if get_last_hp(session, user_in) > 0 else user_in.max_hp
+    last_hp = get_last_hp(session, user_in)
+    player_hp = last_hp if (last_hp is not None and last_hp > 0) else user_in.max_hp
     current_floor = get_current_floor(session, user_in)
     enemy_max_hp = get_enemy_hp(current_floor)
     combat_data = {

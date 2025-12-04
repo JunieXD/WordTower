@@ -42,7 +42,7 @@ async def generate_question(session: SessionDep, user: User = Depends(get_curren
     return success_response(message="题目生成成功", data=jsonable_encoder(question_data))
 
 @router.post("/check")
-async def check_answer(session: SessionDep, question_check_in: QuestionCheck, user_in: User = Depends(get_current_user)):
+async def check_answer(question_check_in: QuestionCheck, user_in: User = Depends(get_current_user)):
     prompt = get_answer_check_prompt(question_check_in.target_word, question_check_in.chinese_sentence, question_check_in.user_input)
     if prompt is None:
         return not_found_response(message="提示词不存在")
