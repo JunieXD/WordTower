@@ -4,24 +4,28 @@ def get_question_prompt(type: str, target_word: str | list[str]) -> str | None:
     if type == settings.QUESTION_TYPES[0]:
         return f"""
 ## 任务
-针对目标单词 "{target_word}" 生成一个词汇测验。
+针对单词 "{target_word}" 生成词汇测验。
 ## 约束条件
-- 故事： 撰写一个引人入胜的英语故事（约 100 词）。目标单词必须恰好出现一次。
-- 语境： 单词周围的语境必须强烈暗示该词的含义（提供强有力的推断线索）。
-- 语言： 故事内容为英语。选项和解析为简体中文。
-- 组成： 包含 4 个选项（1 个正确答案随机出现在 A/B/C/D 中，其他 3 个为干扰项）。
+1. Story: 
+   - 必须使用 CEFR B1 (简单高中英语) 或更简单的词汇和句型（目标词除外）。
+   - 篇幅约 80-100 词，目标词恰好出现一次，语境线索必须指向唯一确定的含义。
+2. Options (Random & Polysemous):
+   - 生成 4 个中文释义（1个正确义 + 3个字典中的多义项干扰）。
+   - 核心指令：生成选项时，先随机决定正确答案的位置（如 C），然后将符合故事语境的正确释义填入该位置，最后将干扰项填入其余位置。
+   - 一致性检查：`correct_option` 的字母必须对应那个符合故事语境的中文释义。
+3. Format: 仅输出 JSON。
 ## JSON 结构
 {{
-"target_word": "英文文本字符串",
-"story": "英文文本字符串",
-"options": {{
-  "A": "中文释义字符串",
-  "B": "中文释义字符串",
-  "C": "中文释义字符串",
-  "D": "中文释义字符串"
-}},
-"correct_option": "字符串 (A/B/C/D)",
-"explanation": "字符串（中文解析，解释语境线索）"
+  "target_word": "英文单词",
+  "story": "英文故事",
+  "options": {{
+    "A": "中文释义",
+    "B": "中文释义",
+    "C": "中文释义",
+    "D": "中文释义"
+  }},
+  "correct_option": "A/B/C/D (Randomized)",
+  "explanation": "中文解析：结合文中简单词汇线索，解释为何选此义，而非其他多义项。"
 }}
 """
     elif type == settings.QUESTION_TYPES[1]:
