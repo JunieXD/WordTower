@@ -1,0 +1,42 @@
+name: Deploy to 1Panel VPS
+
+on:
+  push:
+    branches: [ main ]  # 只有推送到 main 分支时才触发
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Deploy via SSH
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.HOST }}
+        username: ${{ secrets.USERNAME }}
+        password: ${{ secrets.PASSWORD }}
+        script: |
+          # 后端网站目录
+          BACKEND_PATH="/root/WordTower-backend-python"
+          
+          # 后端容器名称关键字 (去 1Panel 容器列表看)
+          BACKEND_CONTAINER_NAME="wt"
+          
+          echo "🚀 开始部署后端..."
+          cd $BACKEND_PATH
+          git pull origin main
+          
+          # 如果有 uv，更新一下 requirements.txt (给容器用)
+          if [ -f "pyproject.toml" ]; then
+             /usr/bin/uv export --format requirements-txt --no-hashes > requirements.txt
+          fi
+
+          # 重启后端容器
+          echo "🔄 重启后端容器..."
+          # 这里使用 docker ps 动态找到容器 ID 并重启
+          docker restart $(docker ps -q --filter name=$BACKEND_CONTAINER_NAME)
+          
+          echo "✅ 后端部署完成！"
