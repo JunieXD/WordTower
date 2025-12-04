@@ -1,0 +1,34 @@
+name: Deploy to 1Panel VPS
+
+on:
+  push:
+    branches: [ main ]  # 只有推送到 main 分支时才触发
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Deploy via SSH
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.HOST }}
+        username: ${{ secrets.USERNAME }}
+        key: ${{ secrets.KEY }}
+        script: |
+          # 前端网站目录
+          FRONTEND_PATH="/opt/1panel/www/sites/wt.juniexd.cn/index"
+          
+          echo "🚀 开始部署前端..."
+          cd $FRONTEND_PATH
+          git pull origin main
+          
+          # 安装依赖并构建
+          echo "📦 构建 Vue..."
+          npm install
+          npm run build
+          
+          echo "✅ 前端部署完成！"
