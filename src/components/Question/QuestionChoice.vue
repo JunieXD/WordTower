@@ -3,7 +3,7 @@
     <p class="text-md" v-html="highlightedStory"></p>
   </Card>
   <Card class="p-4 gap-4">
-    <p class="text-md">请选择单词 {{ targetWord }} 的正确释义。</p>
+    <p class="text-md">请选择单词 {{ targetWord }} 最符合上下文的正确释义。</p>
     <Button
       v-for="option in options"
       :key="option"
