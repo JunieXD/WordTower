@@ -2,7 +2,8 @@
   <div class="flex flex-col h-full overflow-hidden">
     <!-- 战斗区域 -->
     <div
-      class="h-1/3 shrink-0 flex flex-col bg-[url('/src/assets/background/dungeon.png')] bg-cover sm:bg-contain bg-center"
+      class="h-1/3 shrink-0 flex flex-col bg-cover sm:bg-contain bg-center"
+      :style="{ backgroundImage: `url(${dungeonBackground})` }"
     >
       <div class="h-6/10"></div>
       <div class="h-3/10 flex flex-row">
@@ -57,6 +58,21 @@ import QuestionInput from '@/components/Question/QuestionInput.vue'
 import QuestionSort from '@/components/Question/QuestionSort.vue'
 import Loading from '@/components/Question/Loading.vue'
 
+import dungeonBackground from '@/assets/background/dungeon.png'
+
+// 角色动画资源使用 import，确保在构建时被打包
+import playerIdleAnimationSrc from '@/assets/character/Elf/Idle.gif'
+import playerWalkAnimationSrc from '@/assets/character/Elf/Walk.gif'
+import playerAttackAnimationSrc from '@/assets/character/Elf/Attack.gif'
+import playerHurtAnimationSrc from '@/assets/character/Elf/Hurt.gif'
+import playerDeathAnimationSrc from '@/assets/character/Elf/Death.gif'
+
+import enemyIdleAnimationSrc from '@/assets/character/DemonKin/Idle.gif'
+import enemyWalkAnimationSrc from '@/assets/character/DemonKin/Walk.gif'
+import enemyAttackAnimationSrc from '@/assets/character/DemonKin/Attack.gif'
+import enemyHurtAnimationSrc from '@/assets/character/DemonKin/Hurt.gif'
+import enemyDeathAnimationSrc from '@/assets/character/DemonKin/Death.gif'
+
 const conponentMap: Record<QuestionType | 'loading', Component> = {
   context_guess: QuestionChoice,
   cloze_test: QuestionSort,
@@ -65,20 +81,20 @@ const conponentMap: Record<QuestionType | 'loading', Component> = {
 }
 
 const player = ref<HTMLImageElement | null>(null)
-const playerIdleAnimation = '/src/assets/character/Elf/Idle.gif'
-const playerWalkAnimation = '/src/assets/character/Elf/Walk.gif'
-const playerAttackAnimation = '/src/assets/character/Elf/Attack.gif'
-const playerHurtAnimation = '/src/assets/character/Elf/Hurt.gif'
-const playerDeathAnimation = '/src/assets/character/Elf/Death.gif'
+const playerIdleAnimation = playerIdleAnimationSrc
+const playerWalkAnimation = playerWalkAnimationSrc
+const playerAttackAnimation = playerAttackAnimationSrc
+const playerHurtAnimation = playerHurtAnimationSrc
+const playerDeathAnimation = playerDeathAnimationSrc
 const playerHide = ref<string | null>(null)
 const currentPlayerAnimation = ref(playerWalkAnimation)
 
 const enemy = ref<HTMLImageElement | null>(null)
-const enemyIdleAnimation = '/src/assets/character/DemonKin/Idle.gif'
-const enemyWalkAnimation = '/src/assets/character/DemonKin/Walk.gif'
-const enemyAttackAnimation = '/src/assets/character/DemonKin/Attack.gif'
-const enemyHurtAnimation = '/src/assets/character/DemonKin/Hurt.gif'
-const enemyDeathAnimation = '/src/assets/character/DemonKin/Death.gif'
+const enemyIdleAnimation = enemyIdleAnimationSrc
+const enemyWalkAnimation = enemyWalkAnimationSrc
+const enemyAttackAnimation = enemyAttackAnimationSrc
+const enemyHurtAnimation = enemyHurtAnimationSrc
+const enemyDeathAnimation = enemyDeathAnimationSrc
 const enemyHide = ref<string | null>(null)
 const currentEnemyAnimation = ref(enemyIdleAnimation)
 
