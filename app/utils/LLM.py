@@ -12,7 +12,7 @@ async def generate_text(prompt: str) -> Dict[str, Any]:
             {"role": "system", "content": f"You are a strict JSON API. Output ONLY valid JSON. Do not output markdown blocks (```json), conversational text, or internal thinking. Start with `{{` and end with `}}`."},
             {"role": "user", "content": prompt}
         ],
-        extra_body={"thinking": {"type": "disabled"}, "temperature": 0.1}
+        extra_body={"thinking": {"type": "disabled"}, "temperature": 0.5}
     )
     content = response.choices[0].message.content
     
