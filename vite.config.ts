@@ -92,7 +92,7 @@ export default defineConfig({
         changeOrigin: true,
       },
     },
-    allowedHosts: ['wordtower.juniexd.cn'],
+    allowedHosts: ['wordtower.juniexd.cn', 'wt.juniexd.cn'],
     // https: {
     //   key: fs.readFileSync(keyPath),
     //   cert: fs.readFileSync(certPath),
