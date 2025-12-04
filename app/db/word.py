@@ -62,3 +62,14 @@ def random_select_word_by_type(session: Session, user: User, num: int) -> list[W
 def get_word_by_text(session: Session, text: str) -> Word | None:
     statement = select(Word).where(Word.text == text)
     return session.exec(statement).one_or_none()
+
+def get_user_selected_words_count(session: Session, user: User) -> int:
+    """获取用户选择的词库包含的单词总数（去重）"""
+    statement = (
+        select(func.count(func.distinct(Word.id)))
+        .select_from(Word)
+        .join(LibraryWordLink, Word.id == LibraryWordLink.word_id)
+        .join(UserLibrarySelect, LibraryWordLink.library_id == UserLibrarySelect.library_id)
+        .where(UserLibrarySelect.user_id == user.id)
+    )
+    return session.exec(statement).one()

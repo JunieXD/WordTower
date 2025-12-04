@@ -36,6 +36,11 @@ def get_libraries_(session: Session, user: User) -> list[LibraryWithSelectAndPri
     
     return result
 
+def get_user_selected_libraries_(session: Session, user: User) -> list[LibraryWithSelectAndPriority]:
+    """获取用户已选择的所有词库"""
+    libraries = get_libraries_(session, user)
+    return [library for library in libraries if library.selected]
+
 def create_library_(session: Session, library: Library) -> None:
     session.add(library)
     session.commit()

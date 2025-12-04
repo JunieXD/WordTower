@@ -3,11 +3,21 @@ from fastapi.encoders import jsonable_encoder
 from app.db.database import SessionDep
 from app.models.library import Library, LibraryVisibility, LibraryWithWordsId, LibraryDetail
 from app.api.dependencies import get_current_user
-from app.db.library import get_libraries_, create_library_, remove_library_, get_library_by_id, toggle_user_library_select_, get_library_details_, update_library_details_, update_user_library_select_priority_
+from app.db.library import (
+    get_libraries_,
+    get_user_selected_libraries_,
+    create_library_,
+    remove_library_,
+    get_library_by_id,
+    toggle_user_library_select_,
+    get_library_details_,
+    update_library_details_,
+    update_user_library_select_priority_,
+)
 from app.models.user import User
 from app.api.api_responses import success_response, forbidden_response, not_found_response
 from fastapi import Depends
-from app.db.word import get_words_by_ids
+from app.db.word import get_words_by_ids, get_user_selected_words_count
 from app.models.user_library_select import UpdatePriorityRequest
 
 router = APIRouter(prefix="/api/library", tags=["library"])
@@ -15,6 +25,16 @@ router = APIRouter(prefix="/api/library", tags=["library"])
 @router.get("/get_libraries")
 async def get_libraries(session: SessionDep, user_in: User = Depends(get_current_user)):
     return success_response(data=jsonable_encoder(get_libraries_(session, user_in)))
+
+@router.get("/get_selected_libraries")
+async def get_selected_libraries(session: SessionDep, user_in: User = Depends(get_current_user)):
+    return success_response(data=jsonable_encoder(get_user_selected_libraries_(session, user_in)))
+
+@router.get("/get_selected_words_count")
+async def get_selected_words_count(session: SessionDep, user_in: User = Depends(get_current_user)):
+    """获取用户选择的词库包含的单词总数（去重）"""
+    count = get_user_selected_words_count(session, user_in)
+    return success_response(data={"count": count})
 
 @router.post("/create_library")
 async def create_library(session: SessionDep, library_in: Library, user_in: User = Depends(get_current_user)):
