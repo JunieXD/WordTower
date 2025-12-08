@@ -91,7 +91,17 @@ const handleSubmit = () => {
 </script>
 
 <template>
-  <div class="flex items-center justify-center h-screen w-screen">
+  <div class="flex flex-col items-center justify-center h-screen w-screen">
+    <div class="space-y-4 min-w-[350px] max-w-[400px] w-2/3">
+      <h1
+        class="text-center text-5xl font-bold text-transparent bg-clip-text bg-linear-to-br from-blue-500 via-purple-500 to-pink-500"
+      >
+        Word Tower
+      </h1>
+      <div
+        class="h-1 w-[280px] bg-linear-to-br from-blue-500 to-purple-500 mx-auto rounded-full"
+      ></div>
+    </div>
     <Card class="flex flex-col min-w-[350px] max-w-[400px] w-2/3">
       <CardHeader class="flex-none gap-5">
         <CardTitle class="flex justify-center">

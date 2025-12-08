@@ -5,7 +5,7 @@
       <div
         class="text-5xl font-bold mb-2 text-transparent bg-clip-text bg-linear-to-br from-blue-500 via-purple-500 to-pink-500"
       >
-        第 {{ checkoutInfo?.current_floor ?? 0 }} 层
+        第 {{ checkoutInfo?.max_floor ?? 0 }} 层
       </div>
       <div class="text-lg text-gray-500">本次闯塔结算</div>
     </div>
@@ -20,7 +20,7 @@
             <span class="text-md">获得经验</span>
           </div>
           <span class="text-xl font-bold text-yellow-500">
-            +{{ checkoutInfo?.exp_gained ?? 0 }}
+            +{{ checkoutInfo?.total_exp ?? 0 }}
           </span>
         </div>
 
@@ -31,7 +31,7 @@
             <span class="text-md">获得金币</span>
           </div>
           <span class="text-xl font-bold text-amber-500">
-            +{{ checkoutInfo?.coins_gained ?? 0 }}
+            +{{ checkoutInfo?.total_coins ?? 0 }}
           </span>
         </div>
       </div>

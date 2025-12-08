@@ -57,9 +57,9 @@ export interface QuestionCheckResult {
 }
 
 export interface CheckoutInfo {
-  current_floor: number
-  exp_gained: number
-  coins_gained: number
+  max_floor: number
+  total_exp: number
+  total_coins: number
 }
 
 export const useCombatStore = defineStore('combat', () => {
@@ -67,14 +67,15 @@ export const useCombatStore = defineStore('combat', () => {
   const currentQuestion = ref<Question | null>(null)
   const checkoutInfo = ref<CheckoutInfo | null>(null)
 
-  // 累计获得的经验和金币（本次闯塔）
-  const totalExp = ref(0)
-  const totalCoins = ref(0)
-
   async function fetchQuestion() {
     currentQuestion.value = null
     const questionRes = await request.post('/api/question/generate', {}, { timeout: 30000 })
     currentQuestion.value = questionRes.data.data as Question
+  }
+
+  async function fetchCheckoutInfo() {
+    const res = await request.get('/api/combat/checkout')
+    checkoutInfo.value = res.data.data as CheckoutInfo
   }
 
   // 检查关键词翻译 / 句子翻译题的答案
@@ -110,8 +111,6 @@ export const useCombatStore = defineStore('combat', () => {
   // 完成一次挑战（击败怪物），累加经验和金币，继续下一层
   async function CompleteCombat() {
     const rewards = calculateRewards()
-    totalExp.value += rewards.exp
-    totalCoins.value += rewards.coins
 
     await request.post('/api/combat/end', {
       next: true,
@@ -123,13 +122,6 @@ export const useCombatStore = defineStore('combat', () => {
 
   // 结束闯塔（玩家死亡）
   async function EndCombat() {
-    // 保存结算信息
-    checkoutInfo.value = {
-      current_floor: combatInfo.value?.current_floor ?? 0,
-      exp_gained: totalExp.value,
-      coins_gained: totalCoins.value,
-    }
-
     await request.post('/api/combat/end', {
       next: false,
       end_hp: combatInfo.value?.player_hp,
@@ -137,14 +129,14 @@ export const useCombatStore = defineStore('combat', () => {
       coins_gained: 0,
     })
 
+    await fetchCheckoutInfo()
+
     // 清理状态
     combatInfo.value = null
     currentQuestion.value = null
-    totalExp.value = 0
-    totalCoins.value = 0
   }
 
-  function clearCheckout() {
+  async function clearCheckout() {
     checkoutInfo.value = null
   }
 
@@ -158,6 +150,7 @@ export const useCombatStore = defineStore('combat', () => {
     answerQuestion,
     CompleteCombat,
     EndCombat,
+    fetchCheckoutInfo,
     clearCheckout,
   }
 })

@@ -58,7 +58,7 @@ import QuestionInput from '@/components/Question/QuestionInput.vue'
 import QuestionSort from '@/components/Question/QuestionSort.vue'
 import Loading from '@/components/Question/Loading.vue'
 
-import dungeonBackground from '@/assets/background/dungeon.png'
+import dungeonBackground from '@/assets/background/dungeon.jpg'
 
 // 角色动画资源使用 import，确保在构建时被打包
 import playerIdleAnimationSrc from '@/assets/character/Elf/Idle.gif'
