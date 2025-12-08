@@ -12,7 +12,7 @@ def get_question_prompt(type: str, target_word: str | list[str]) -> str | None:
 2. Options (Anti-Bias Strategy):
    - 强制布局：正确答案必须设置在 B、C 或 D 之中，不要在选项中写出正确还是错误。
    - 禁止项：选项 A 必须是干扰项（错误含义）。
-   - 内容要求：包含 1 个符合语境的正确义，3 个该词的一词多义（Polysemy）干扰项，如果释义不够，则用拼写相近的词语的释义代替。
+   - 内容要求：包含 1 个符合语境的正确义，3 个该词的一词多义（Polysemy）干扰项，如果释义不够，则用拼写相近的词语的中文释义代替。
 3. Format: 仅输出 JSON。
 ## JSON 结构
 {{

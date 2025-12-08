@@ -1,7 +1,14 @@
 from fastapi import APIRouter, Depends
-from app.api.api_responses import success_response, conflict_response, internal_server_error_response
+from app.api.api_responses import success_response, conflict_response, internal_server_error_response, not_found_response
 from app.db.database import SessionDep
-from app.db.challenge import get_current_floor, get_last_hp, current_challenge, new_challenge, end_challenge
+from app.db.challenge import (
+    get_current_floor,
+    get_last_hp,
+    current_challenge,
+    new_challenge,
+    end_challenge,
+    get_last_failed_tower_run_rewards,
+)
 from app.api.dependencies import get_current_user
 from app.models.user import User
 from app.utils.config import get_enemy_hp, get_enemy_attack
@@ -47,3 +54,13 @@ async def end_combat(session: SessionDep, end_challenge_in: EndChallenge, user_i
         if not challenge:
             return internal_server_error_response(message="战斗开始失败")
     return success_response(message="战斗结束")
+
+@router.get("/checkout")
+async def get_tower_rewards(session: SessionDep, user_in: User = Depends(get_current_user)):
+    """获取用户最近一次以失败结束的连续闯塔累计获得的经验和金币。"""
+
+    result = get_last_failed_tower_run_rewards(session, user_in)
+    if result is None:
+        return not_found_response(message="没有以失败结束的连续闯塔记录")
+
+    return success_response(message="获取最近一次连续闯塔奖励成功", data=result)

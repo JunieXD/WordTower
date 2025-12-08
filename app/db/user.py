@@ -1,5 +1,5 @@
 from sqlmodel import Session, select
-from app.models import User, UserCreate, UserWordRecord, Word
+from app.models import User, UserCreate, UserQuestionRecord, Question
 from app.utils.security import hash_password
 from datetime import datetime, timezone
 
@@ -24,10 +24,24 @@ def set_user_last_login(session: Session, username: str) -> None:
         user.last_login = datetime.now(timezone.utc)
         session.commit()
 
-def insert_user_word_record(session: Session, user: User, word: Word, is_correct: bool) -> None:
-    user_word_record = UserWordRecord(user_id=user.id, word_id=word.id, correct=is_correct)
-    session.add(user_word_record)
+def user_question_answer(session: Session, user: User, question: Question, is_correct: bool) -> None:
+    user_question_record = UserQuestionRecord(user_id=user.id, question_id=question.id, correct=is_correct)
+    session.add(user_question_record)
     session.commit()
+    
+def user_question_report(session: Session, user: User, question: Question, report: str) -> None:
+    select_statement = select(UserQuestionRecord).where(UserQuestionRecord.user_id == user.id).where(UserQuestionRecord.question_id == question.id)
+    user_question_record = session.exec(select_statement).first()
+    if user_question_record:
+        user_question_record.report = report
+        session.commit()
+        
+def user_question_rating(session: Session, user: User, question: Question, rating: int) -> None:
+    select_statement = select(UserQuestionRecord).where(UserQuestionRecord.user_id == user.id).where(UserQuestionRecord.question_id == question.id)
+    user_question_record = session.exec(select_statement).first()
+    if user_question_record:
+        user_question_record.rating = rating
+        session.commit()
     
 def update_user_max_floor(session: Session, user: User, max_floor: int) -> None:
     user.max_floor = max(user.max_floor, max_floor)

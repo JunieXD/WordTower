@@ -39,3 +39,5 @@ uv run uvicorn app.main:app --reload
 ```
 
 ## TODOS
+
+- 对AI返回的JSON进行check

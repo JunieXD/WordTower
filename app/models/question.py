@@ -18,3 +18,9 @@ class QuestionCheck(SQLModel):
     
 class QuestionAnswer(SQLModel):
     is_correct: bool
+    
+class QuestionReport(SQLModel):
+    report: str
+    
+class QuestionRating(SQLModel):
+    rating: int

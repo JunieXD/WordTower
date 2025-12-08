@@ -12,7 +12,7 @@ from .library import Library, LibraryVisibility, LibraryDetail, LibraryWithWords
 from .library_word_link import LibraryWordLink
 from .question_word_link import QuestionWordLink
 from .user_user_link import UserUserLink, FriendStatus
-from .user_word_record import UserWordRecord
+from .user_question_record import UserQuestionRecord
 from .user_library_select import UserLibrarySelect, PriorityItem, UpdatePriorityRequest
 
 __all__ = [
@@ -30,6 +30,6 @@ __all__ = [
     "LibraryWordLink",
     "QuestionWordLink",
     "UserUserLink", "FriendStatus",
-    "UserWordRecord",
+    "UserQuestionRecord",
     "UserLibrarySelect", "PriorityItem", "UpdatePriorityRequest"
 ]
