@@ -5,41 +5,25 @@ from app.models.word import Word
 from app.utils.prompt import get_question_prompt
 from app.utils.LLM import generate_text
 from app.utils.config import settings, get_question_type_weights
-from app.models.user import User
-from app.models.user_question_record import UserQuestionRecord
-from app.models.level_question_link import LevelQuestionLink
-from app.db.level import get_current_level
 from sqlmodel import select
 import random
-
-def create_question_(session: Session, question: Question) -> Question:
-    session.add(question)
-    session.commit()
-    session.refresh(question)
-    return question
+import json
+import asyncio
+from fastapi.encoders import jsonable_encoder
+from redis.asyncio import Redis, from_url
+from app.db.database import engine
+from app.models.user import User
+from app.db.word import random_select_word_by_type
+from app.db.challenge import get_current_floor
+from sqlmodel import Session as DBSession
+from app.models.word import Word
+from app.db.redis import pool
 
 def insert_question_word_link(session: Session, question: Question, word: Word) -> None:
     question_word_link = QuestionWordLink(question_id=question.id, word_id=word.id)
     session.add(question_word_link)
     session.commit()
 
-async def generate_question_(session: Session, type: str, target_words: list[Word]) -> Question | None:
-    if type not in settings.QUESTION_TYPES:
-        return None
-    prompt = get_question_prompt(type, [word.text for word in target_words])
-    if prompt is None:
-        return None
-
-    max_retries = 2
-    for attempt in range(max_retries + 1):
-        try:
-            question = Question(type=type, content=await generate_text(prompt))
-            question = create_question_(session, question)
-            return question
-        except Exception:
-            if attempt == max_retries:
-                return None
-            continue
 
 def random_select_question_type(floor: int) -> str:
     weights = get_question_type_weights(floor)
@@ -49,40 +33,135 @@ def get_question_words(session: Session, question: Question) -> list[Word]:
     statement = select(Word).join(QuestionWordLink).where(QuestionWordLink.question_id == question.id)
     return session.exec(statement).all()
 
+QUEUE_KEY_PREFIX = "questions:queue:"
 
-def get_unanswered_question_for_current_level(session: Session, user: User) -> Question | None:
-    """获取用户当前关卡中尚未作答的一道题目。如果不存在则返回 None。"""
+def _prepare_generation_data(user_id: int):
+    """
+    同步函数：准备生成题目所需的数据（在线程池中运行）
+    """
+    with DBSession(engine) as session:
+        user = session.get(User, user_id)
+        if not user:
+            return None
+            
+        floor = get_current_floor(session, user) or 1
+        weights = get_question_type_weights(floor)
+        q_type = random.choices(settings.QUESTION_TYPES, weights=weights)[0]
+        
+        word_count = 4 if q_type == "cloze_test" else 1
+        words = random_select_word_by_type(session, user, word_count)
+        
+        if len(words) < word_count:
+            return None
+        
+        if word_count > 1:
+            prompt_input = [w.text for w in words]
+        else:
+            prompt_input = words[0].text
+            
+        prompt = get_question_prompt(q_type, prompt_input)
+        if not prompt:
+            return None
+            
+        # 返回必要的数据，word对象需要转换为ID列表以跨Session传递
+        return q_type, [w.id for w in words], prompt
 
-    level = get_current_level(session, user)
-    if not level:
+def _save_generated_question(type: str, content: dict, word_ids: list[int]) -> Question:
+    """
+    同步函数：保存生成的题目（在线程池中运行）
+    """
+    with DBSession(engine) as session:
+        # 重新创建 Question 对象
+        question = Question(type=type, content=content)
+        session.add(question)
+        session.commit()
+        session.refresh(question)
+        
+        # 重新建立关联（因为是在新的Session中）
+        for w_id in word_ids:
+            # 不需要查询Word对象，直接使用ID插入链接
+            link = QuestionWordLink(question_id=question.id, word_id=w_id)
+            session.add(link)
+            
+        session.commit()
+        
+        # 刷新并移除，以便返回
+        session.refresh(question)
+        session.expunge(question)
+        return question
+
+async def generate_single_question(user_id: int) -> Question | None:
+    """
+    为用户生成一个单独的问题。
+    异步协调：同步DB读 -> 异步LLM -> 同步DB写
+    """
+    try:
+        # 1. 在线程池中执行同步的数据库读取操作
+        result = await asyncio.to_thread(_prepare_generation_data, user_id)
+        if not result:
+            return None
+            
+        q_type, word_ids, prompt = result
+        
+        # 2. 异步调用 LLM (I/O bound)
+        content = await generate_text(prompt)
+        
+        # 3. 在线程池中执行同步的数据库写入操作
+        question = await asyncio.to_thread(_save_generated_question, q_type, content, word_ids)
+        
+        return question
+    except Exception as e:
+        print(f"Error generating question for user {user_id}: {e}")
         return None
 
-    # 查询当前关卡下的所有题目
-    statement = (
-        select(Question)
-        .join(LevelQuestionLink, LevelQuestionLink.question_id == Question.id)
-        .where(LevelQuestionLink.level_id == level.id)
-    )
-    questions = session.exec(statement).all()
-    if not questions:
-        return None
+async def push_question_to_queue(redis: Redis, user_id: int, question: Question):
+    """
+    将问题JSON推送到用户的Redis队列中。
+    """
+    try:
+        # serialize question to json
+        data = json.dumps(jsonable_encoder(question))
+        key = f"{QUEUE_KEY_PREFIX}{user_id}"
+        await redis.lpush(key, data)
+    except Exception as e:
+        print(e)
 
-    question_ids = [q.id for q in questions if q.id is not None]
-    if not question_ids:
-        return None
+async def process_generated_questions(user_id: int, tasks: list[asyncio.Task], exclude_question_id: int | None = None):
+    """
+    处理生成的题目任务，将结果推入队列 (排除已返回的题目)
+    """
+    redis = Redis(connection_pool=pool)
+    try:
+        # 等待所有任务完成
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        for q in results:
+            if isinstance(q, Exception) or q is None:
+                continue
+                
+            # 如果是已经返回给用户的题目，跳过入队
+            if exclude_question_id and q.id == exclude_question_id:
+                continue
+                
+            await push_question_to_queue(redis, user_id, q)
+    except Exception as e:
+        print(e)
+    finally:
+        await redis.close()
 
-    # 查询用户已经作答过的题目
-    answered_stmt = (
-        select(UserQuestionRecord)
-        .where(UserQuestionRecord.user_id == user.id)
-        .where(UserQuestionRecord.question_id.in_(question_ids))
-    )
-    answered_records = session.exec(answered_stmt).all()
-    answered_ids = {record.question_id for record in answered_records}
-
-    # 返回第一道未作答的题目
-    for question in questions:
-        if question.id not in answered_ids:
-            return question
-
-    return None
+async def generate_questions_background_task(user_id: int, count: int):
+    """
+    后台任务，用于生成'count'个问题并将其推送到Redis。
+    """
+    redis = Redis(connection_pool=pool)
+    try:
+        tasks = [asyncio.create_task(generate_single_question(user_id)) for _ in range(count)]
+        results = await asyncio.gather(*tasks)
+        
+        for q in results:
+            if q:
+                await push_question_to_queue(redis, user_id, q)
+    except Exception as e:
+        print(e)
+    finally:
+        await redis.close()

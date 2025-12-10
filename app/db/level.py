@@ -14,8 +14,11 @@ def new_level(session: Session, floor: int) -> Level:
     session.refresh(level)
     return level
 
-def insert_level_question_link(session: Session, level: Level, question: Question) -> None:
-    level_question_link = LevelQuestionLink(level_id=level.id, question_id=question.id)
+def link_level_question(session: Session, level_id: int, question_id: int) -> None:
+    statement = select(LevelQuestionLink).where(LevelQuestionLink.level_id == level_id).where(LevelQuestionLink.question_id == question_id)
+    if session.exec(statement).first():
+        return
+    level_question_link = LevelQuestionLink(level_id=level_id, question_id=question_id)
     session.add(level_question_link)
     session.commit()
 

@@ -19,8 +19,9 @@ from app.db.user import update_user_max_floor
 router = APIRouter(prefix="/api/combat", tags=["combat"])
 
 @router.post("/start")
-async def start_combat(session: SessionDep, user_in: User = Depends(get_current_user)):
-    if not current_challenge(session, user_in):
+def start_combat(session: SessionDep, user_in: User = Depends(get_current_user)):
+    challenge = current_challenge(session, user_in)
+    if not challenge:
         challenge = new_challenge(session, user_in, new_level(session, 1))
         if not challenge:
             return internal_server_error_response(message="战斗开始失败")
@@ -29,6 +30,7 @@ async def start_combat(session: SessionDep, user_in: User = Depends(get_current_
     current_floor = get_current_floor(session, user_in)
     enemy_max_hp = get_enemy_hp(current_floor)
     combat_data = {
+        "level_id": challenge.level_id,
         "current_floor": current_floor,
         "player_hp": player_hp,
         "player_max_hp": user_in.max_hp,
@@ -40,7 +42,7 @@ async def start_combat(session: SessionDep, user_in: User = Depends(get_current_
     return success_response(data=combat_data)
 
 @router.post("/end")
-async def end_combat(session: SessionDep, end_challenge_in: EndChallenge, user_in: User = Depends(get_current_user)):
+def end_combat(session: SessionDep, end_challenge_in: EndChallenge, user_in: User = Depends(get_current_user)):
     challenge = current_challenge(session, user_in)
     if not challenge:
         return conflict_response(message="没有进行中的战斗")
@@ -53,10 +55,11 @@ async def end_combat(session: SessionDep, end_challenge_in: EndChallenge, user_i
         challenge = new_challenge(session, user_in, new_level(session, current_floor + 1))
         if not challenge:
             return internal_server_error_response(message="战斗开始失败")
-    return success_response(message="战斗结束")
+    
+    return success_response(message="战斗结束", data={"level_id": challenge.level_id})
 
 @router.get("/checkout")
-async def get_tower_rewards(session: SessionDep, user_in: User = Depends(get_current_user)):
+def get_tower_rewards(session: SessionDep, user_in: User = Depends(get_current_user)):
     """获取用户最近一次以失败结束的连续闯塔累计获得的经验和金币。"""
 
     result = get_last_failed_tower_run_rewards(session, user_in)

@@ -18,6 +18,7 @@ class QuestionCheck(SQLModel):
     
 class QuestionAnswer(SQLModel):
     is_correct: bool
+    level_id: int
     
 class QuestionReport(SQLModel):
     report: str
