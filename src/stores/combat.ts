@@ -3,6 +3,7 @@ import request from '@/utils/request'
 import { ref } from 'vue'
 
 export interface CombatInfo {
+  level_id: number
   current_floor: number
   player_hp: number
   player_max_hp: number
@@ -69,7 +70,7 @@ export const useCombatStore = defineStore('combat', () => {
 
   async function fetchQuestion() {
     currentQuestion.value = null
-    const questionRes = await request.post('/api/question/generate', {}, { timeout: 30000 })
+    const questionRes = await request.get('/api/question/get', { timeout: 30000 })
     currentQuestion.value = questionRes.data.data as Question
   }
 
@@ -90,6 +91,7 @@ export const useCombatStore = defineStore('combat', () => {
 
   async function answerQuestion(questionId: number, isCorrect: boolean) {
     await request.post(`/api/question/answer/${questionId}`, {
+      level_id: combatInfo.value?.level_id,
       is_correct: isCorrect,
     })
   }
@@ -112,12 +114,16 @@ export const useCombatStore = defineStore('combat', () => {
   async function CompleteCombat() {
     const rewards = calculateRewards()
 
-    await request.post('/api/combat/end', {
+    const res = await request.post('/api/combat/end', {
       next: true,
       end_hp: combatInfo.value?.player_hp,
       exp_gained: rewards.exp,
       coins_gained: rewards.coins,
     })
+
+    if (combatInfo.value && res.data.data?.level_id) {
+      combatInfo.value.level_id = res.data.data.level_id
+    }
   }
 
   // 结束闯塔（玩家死亡）
