@@ -4,16 +4,67 @@ def get_question_prompt(type: str, target_word: str | list[str]) -> str | None:
     if type == settings.QUESTION_TYPES[0]:
         return f"""
 ## 任务
-针对单词 "{target_word}" 生成词汇测验。
+针对目标单词 "{target_word}" 生成词汇测验。
+
 ## 约束条件
 1. Story: 
-   - 必须使用 CEFR B1 (简单高中英语) 或更简单的词汇和句型（目标词除外）。
-   - 篇幅约 80-100 词，目标词恰好出现一次，语境线索必须指向唯一确定的含义。
-2. Options (Anti-Bias Strategy):
-   - 强制布局：正确答案必须设置在 B、C 或 D 之中，不要在选项中写出正确还是错误。
-   - 禁止项：选项 A 必须是干扰项（错误含义）。
-   - 内容要求：包含 1 个符合语境的正确义，3 个该词的一词多义（Polysemy）干扰项，如果释义不够，则用拼写相近的词语的中文释义代替。
+   - 必须使用 CEFR B1 (简单高中英语) 或更简单的词汇和句型（ {target_word} 除外）。
+   - 篇幅约 40-60 词，{target_word} 恰好出现一次，语境线索必须指向唯一确定的含义。
+2. Options (Anti-Bias Strategy & Content Rules):
+   - 强制位置分布 (利用单词长度决定正确项位置):
+     * 单词长度为 偶数 -> 正确答案设在 C 或 D。
+     * 单词长度为 奇数 -> 正确答案设在 B。
+     * 禁止将正确答案设在 A。
+   - 选项 A 生成逻辑 (强制干扰):
+     * 选项 A 必须是错误的含义。
+     * 关键规则：选项 A 的中文释义必须与正确选项完全不同。
+     * 如果目标词没有多义项（如 belong），选项 A 必须使用形近词（如 below, long）的释义。
+     * 严禁使用“属于（错误义项）”这种带备注的写法。
+   - 内容要求:
+     * 包含 1 个正确义，3 个干扰项。
+     * 干扰项优先选一词多义（Polysemy），若无多义则选形近词（Look-alike）。
+   - 格式清洗 (Output Hygiene):
+     * 选项内容只能是纯中文短语（如 "属于"）。
+     * 严禁出现括号、备注、拼音、英文原词或说明性文字（如 "（干扰项）", "错误义项"）。
+     * 检查：确保没有两个选项的中文意思是相同的。
 3. Format: 仅输出 JSON。
+
+## Example 1 (多义词策略)
+Input:
+target_word: "capital"
+
+Output:
+{{
+  "target_word": "capital",
+  "story": "Mr. Thompson wanted to open a new bakery in the town center. He had a wonderful recipe for bread and a great location picked out. However, he faced a major problem before he could start. He did not have enough money in the bank to buy the ovens and pay the rent. He needed to find a partner who could provide the necessary capital to launch his business.",
+  "options": {{
+    "A": "首都；首府",
+    "B": "大写字母",
+    "C": "启动资金",
+    "D": "柱顶"
+  }},
+  "correct_option": "C",
+  "explanation": "文中提到 Mr. Thompson 想开店但没有足够的钱（money）买设备和付房租，因此这里的 capital 指的是商业活动所需的'资金'。选项 A（城市）、B（字母格式）和 D（建筑术语）均不符合语境。"
+}}
+
+## Example 2 (形近词策略 - 当目标词无足够多义项时)
+Input:
+target_word: "environment"
+
+Output:
+{{
+  "target_word": "environment",
+  "story": "Sally loves to hike in the mountains every weekend. She enjoys the fresh air, the tall green trees, and the clean rivers. She believes it is important to protect the natural environment because animals need a safe home to live in. If we keep the forest clean, the earth will stay healthy for a long time.",
+  "options": {{
+    "A": "娱乐",
+    "B": "环境",
+    "C": "信封",
+    "D": "参与"
+  }},
+  "correct_option": "B",
+  "explanation": "文中提到的 fresh air, trees, rivers 以及 animals 的家，均指向大自然。选项 A、C、D 分别是与 environment 拼写或发音相近的词汇（Entertainment/Envelope/Engagement），但含义完全不符。"
+}}
+
 ## JSON 结构
 {{
   "target_word": "英文单词",
@@ -24,7 +75,7 @@ def get_question_prompt(type: str, target_word: str | list[str]) -> str | None:
     "C": "中文释义",
     "D": "中文释义"
   }},
-  "correct_option": "A/B/C/D (Randomized)",
+  "correct_option": "A/B/C/D",
   "explanation": "中文解析：结合文中简单词汇线索，解释为何选此义，而非其他多义项。"
 }}
 """
@@ -32,6 +83,7 @@ def get_question_prompt(type: str, target_word: str | list[str]) -> str | None:
         return f"""
 ## 任务
 使用以下所有目标单词创建一个“完形填空”段落测验：{target_word}。
+
 ## 约束条件
 1. 数量严格匹配:
     - 输入数量 = 填空数量： 如果输入的 `target_word` 列表包含 N 个单词，生成的段落必须包含恰好 N 个占位符。
@@ -45,6 +97,19 @@ def get_question_prompt(type: str, target_word: str | list[str]) -> str | None:
   - 正确示例： "The sun was setting and the sky turned pink, creating a beautiful ____[1]____." (语境暗示了 'view' 或 'scenery')。
 4. 逻辑唯一性： 确保在提供的目标单词中，只有正确的单词在其特定空格中在逻辑上是通顺的。
 5. 单词形式： 必须按原样使用提供的单词（不要更改时态或词性，除非语法绝对不通顺，但即便如此也要尽量保持原词）。
+
+## Example (4-Word Logic Chain)
+Input: 
+target_word: ["recipe", "ingredients", "confused", "flavor"]
+
+Output:
+{{
+  "cloze_text": "Chef Tony wanted to bake a special cake, but he lost the paper with the instructions. Without the ____[1]____, he did not know the correct steps to follow. He looked at the flour, sugar, and eggs on the table, feeling ____[2]____ about how much to use. He decided to guess the amounts of the ____[3]____ and mixed them all together. Luckily, the final result was delicious and the ____[4]____ tasted like sweet strawberries.",
+  "shuffled_options": ["ingredients", "flavor", "recipe", "confused"],
+  "correct_sequence": ["recipe", "confused", "ingredients", "flavor"],
+  "chinese_translation": "托尼大厨想烤一个特别的蛋糕，但他弄丢了写着说明的那张纸。没有食谱，他不知道该遵循的正确步骤。他看着桌子上的面粉、糖和鸡蛋，对该用多少感到困惑。他决定猜测原料的用量，并把它们混合在一起。幸运的是，最终结果很美味，味道尝起来像甜草莓。"
+}}
+
 ## JSON 结构
 {{
 "cloze_text": "字符串（包含 [n] 占位符的英文文本）",
@@ -56,11 +121,24 @@ def get_question_prompt(type: str, target_word: str | list[str]) -> str | None:
     elif type == settings.QUESTION_TYPES[2]:
         return f"""
 ## 任务
-基于目标单词 "{target_word}" 创建一个翻译挑战。
+基于目标单词 "{target_word}" 创建一个翻译任务。
+
 ## 约束条件
-- 中文原句：创建一个自然、现代的中文句子（15-30 字），其中的逻辑要紧密贴合 target_word 的含义。
+- 中文原句：创建一个自然、现代的中文句子（10-20 字），其中的逻辑要紧密贴合 target_word 的含义。
 - 参考译文：提供该中文句子的标准英语翻译，且必须使用 target_word。
 - 难度：中文句子应清晰易懂，使用简单常见的词汇，避免过于诗意化或使用生僻古语。
+
+## Example
+Input:
+target_word: "efficient"
+
+Output:
+{
+  "target_word": "efficient",
+  "chinese_sentence": "这台新打印机非常高效，每分钟能打印五十页。",
+  "reference_answer": "This new printer is very efficient and can print fifty pages per minute"
+}
+
 ## JSON 结构
 {{
 "target_word": "字符串",

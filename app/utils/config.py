@@ -40,7 +40,7 @@ class Settings:
     # 火山方舟 API Base URL
     ARK_API_BASE_URL: str = os.getenv("ARK_API_BASE_URL", "https://ark.cn-beijing.volces.com/api/v3")
     # 火山方舟 API Model ID
-    ARK_API_MODEL_ID: str = os.getenv("ARK_API_MODEL_ID", "doubao-seed-1-6-flash-250828")
+    ARK_API_MODEL_ID: str = os.getenv("ARK_API_MODEL_ID", "doubao-seed-1-6-251015")
 
     # 题目类型
     QUESTION_TYPES = ["context_guess", "cloze_test", "keyword_translation"]

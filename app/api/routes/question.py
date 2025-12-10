@@ -41,7 +41,7 @@ async def get_question(
             pass
 
     # 队列为空，启动4个生成任务
-    tasks = [asyncio.create_task(generate_single_question(user_in.id)) for _ in range(4)]
+    tasks = [asyncio.create_task(generate_single_question(user_in.id)) for _ in range(5)]
     
     question_to_return = None
     

@@ -41,3 +41,5 @@ uv run uvicorn app.main:app --reload
 ## TODOS
 
 - 对AI返回的JSON进行check
+    - 原文中包含目标单词
+    - 正确选项为 ABCD 中的一个
