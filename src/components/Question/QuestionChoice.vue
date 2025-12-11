@@ -45,12 +45,69 @@ const targetWord = computed(() => {
   return props.question?.content?.target_word
 })
 
+/**
+ * 生成单词的常见变体形式（复数、过去式、现在分词等）
+ * 返回包含原词和所有变体的数组
+ */
+const generateWordVariants = (word: string): string[] => {
+  word = word.toLowerCase()
+  const variants = new Set<string>([word])
+  const lastChar = word.charAt(word.length - 1)
+  const secondLastChar = word.charAt(word.length - 2)
+  variants.add(word + 's')
+  if (/(?:s|x|z|ch|sh)$/.test(word)) {
+    variants.add(word + 'es')
+  }
+  if (word.length > 1 && word.endsWith('y') && !'aeiou'.includes(secondLastChar)) {
+    variants.add(word.slice(0, -1) + 'ies')
+  }
+  if (word.endsWith('f')) {
+    variants.add(word.slice(0, -1) + 'ves')
+  }
+  if (word.endsWith('fe')) {
+    variants.add(word.slice(0, -2) + 'ves')
+  }
+  variants.add(word + 'ed')
+  if (word.endsWith('e')) {
+    variants.add(word + 'd')
+  }
+  if (word.length > 1 && word.endsWith('y') && !'aeiou'.includes(secondLastChar)) {
+    variants.add(word.slice(0, -1) + 'ied')
+  }
+  if (word.length >= 2 && !'aeiouwy'.includes(lastChar) && 'aeiou'.includes(secondLastChar)) {
+    variants.add(word + lastChar + 'ed')
+  }
+  variants.add(word + 'ing')
+  if (word.endsWith('e') && !word.endsWith('ee')) {
+    variants.add(word.slice(0, -1) + 'ing')
+  }
+  if (word.length >= 2 && !'aeiouwy'.includes(lastChar) && 'aeiou'.includes(secondLastChar)) {
+    variants.add(word + lastChar + 'ing')
+  }
+  variants.add(word + 'er')
+  variants.add(word + 'est')
+  if (word.endsWith('e')) {
+    variants.add(word + 'r')
+    variants.add(word + 'st')
+  }
+  if (word.length > 1 && word.endsWith('y') && !'aeiou'.includes(secondLastChar)) {
+    variants.add(word.slice(0, -1) + 'ier')
+    variants.add(word.slice(0, -1) + 'iest')
+  }
+  variants.add(word + 'ly')
+  if (word.length > 1 && word.endsWith('y') && !'aeiou'.includes(secondLastChar)) {
+    variants.add(word.slice(0, -1) + 'ily')
+  }
+  return Array.from(variants)
+}
+
 const highlightedStory = computed(() => {
   if (!story.value || !targetWord.value) return story.value || ''
 
-  // 使用全局正则表达式匹配目标单词及其常见变形（复数、过去式、进行时等）
-  // 匹配模式：targetWord + 可选后缀 (s, es, ed, ing, d, er, est, ly 等)
-  const regex = new RegExp(`\\b(${targetWord.value}(?:s|es|ed|ing|d|er|est|ly)?)\\b`, 'gi')
+  const variants = generateWordVariants(targetWord.value)
+  variants.sort((a, b) => b.length - a.length)
+  const escapedVariants = variants.map((v) => v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+  const regex = new RegExp(`\\b(${escapedVariants.join('|')})\\b`, 'gi')
   return story.value.replace(regex, '<strong class="underline">$1</strong>')
 })
 
