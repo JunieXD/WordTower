@@ -89,7 +89,7 @@ onMounted(() => {
       v-if="showPrompt && !isInstalled"
       class="fixed bottom-4 left-4 right-4 z-50 max-w-md mx-auto pointer-events-auto"
     >
-      <Card class="shadow-lg">
+      <Card class="shadow-lg gap-2">
         <CardHeader class="pb-3">
           <div class="flex items-center justify-between">
             <CardTitle class="text-lg flex items-center gap-2">
@@ -107,11 +107,12 @@ onMounted(() => {
         </CardHeader>
         <CardContent>
           <CardDescription class="mb-4">
-            将 Word Tower 安装到您的设备上，享受更快的访问速度。
+            将 Word Tower 安装到您的设备上，享受更快的访问速度。<br />建议使用 Edge / Chrome
+            浏览器，并为浏览器 APP 开启 “<b>桌面快捷方式</b>” 权限。
           </CardDescription>
           <div class="flex gap-2">
             <Button @click="handleInstall" class="flex-1"> 立即安装 </Button>
-            <Button variant="outline" @click="handleDismiss"> 稍后 </Button>
+            <Button variant="outline" @click="handleDismiss"> 下次再说 </Button>
           </div>
         </CardContent>
       </Card>
