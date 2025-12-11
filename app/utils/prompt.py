@@ -1,38 +1,29 @@
 from app.utils.config import settings
+import random
 
 def get_question_prompt(type: str, target_word: str | list[str]) -> str | None:
+    correct_slot = random.choice(['A', 'B', 'C', 'D'])
     if type == settings.QUESTION_TYPES[0]:
         return f"""
 ## 任务
-针对目标单词 "{target_word}" 生成词汇测验。
-
+请根据目标单词 "{target_word}" 和 指定的正确选项位置 "{correct_slot}" 生成一个 JSON 格式的词汇测验。
 ## 约束条件
-1. Story: 
+1. Story:
    - 必须使用 CEFR A2 (简单高中英语) 或更简单的词汇和句型（ {target_word} 除外）。
    - 篇幅约 40-60 词，{target_word} 恰好出现一次，语境线索必须指向唯一确定的含义。
-2. Options (Anti-Bias Strategy & Content Rules):
-   - 强制位置分布 (利用单词长度决定正确项位置):
-     * 单词长度为 偶数 -> 正确答案设在 C 或 D。
-     * 单词长度为 奇数 -> 正确答案设在 B。
-     * 禁止将正确答案设在 A。
-   - 选项 A 生成逻辑 (强制干扰):
-     * 选项 A 必须是错误的含义。
-     * 关键规则：选项 A 的中文释义必须与正确选项完全不同。
-     * 如果目标词没有多义项（如 belong），选项 A 必须使用形近词（如 below, long）的释义。
-     * 严禁使用“属于（错误义项）”这种带备注的写法。
+2. Options (Content Rules):
    - 内容要求:
-     * 包含 1 个正确义，3 个干扰项。
+     * 包含 1 个正确义，3 个干扰项。必须将【正确项】放置在选项 "{correct_slot}" 中。将【干扰项】随机填入剩余的三个选项位置。
      * 干扰项优先选一词多义（Polysemy），若无多义则选形近词（Look-alike）。
    - 格式清洗 (Output Hygiene):
      * 选项内容只能是纯中文短语（如 "属于"）。
      * 严禁出现括号、备注、拼音、英文原词或说明性文字（如 "（干扰项）", "错误义项"）。
      * 检查：确保没有两个选项的中文意思是相同的。
 3. Format: 仅输出 JSON。
-
 ## Example 1 (多义词策略)
 Input:
 target_word: "capital"
-
+correct_slot: "C"
 Output:
 {{
   "target_word": "capital",
@@ -46,11 +37,10 @@ Output:
   "correct_option": "C",
   "explanation": "文中提到 Mr. Thompson 想开店但没有足够的钱（money）买设备和付房租，因此这里的 capital 指的是商业活动所需的'资金'。选项 A（城市）、B（字母格式）和 D（建筑术语）均不符合语境。"
 }}
-
 ## Example 2 (形近词策略 - 当目标词无足够多义项时)
 Input:
 target_word: "environment"
-
+correct_slot: "B"
 Output:
 {{
   "target_word": "environment",
@@ -64,7 +54,6 @@ Output:
   "correct_option": "B",
   "explanation": "文中提到的 fresh air, trees, rivers 以及 animals 的家，均指向大自然。选项 A、C、D 分别是与 environment 拼写或发音相近的词汇（Entertainment/Envelope/Engagement），但含义完全不符。"
 }}
-
 ## JSON 结构
 {{
   "target_word": "英文单词",

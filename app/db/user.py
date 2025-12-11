@@ -30,14 +30,14 @@ def user_question_answer(session: Session, user: User, question: Question, is_co
     session.commit()
     
 def user_question_report(session: Session, user: User, question: Question, report: str) -> None:
-    select_statement = select(UserQuestionRecord).where(UserQuestionRecord.user_id == user.id).where(UserQuestionRecord.question_id == question.id)
+    select_statement = select(UserQuestionRecord).where(UserQuestionRecord.user_id == user.id).where(UserQuestionRecord.question_id == question.id).order_by(UserQuestionRecord.time)
     user_question_record = session.exec(select_statement).first()
     if user_question_record:
         user_question_record.report = report
         session.commit()
         
 def user_question_rating(session: Session, user: User, question: Question, rating: int) -> None:
-    select_statement = select(UserQuestionRecord).where(UserQuestionRecord.user_id == user.id).where(UserQuestionRecord.question_id == question.id)
+    select_statement = select(UserQuestionRecord).where(UserQuestionRecord.user_id == user.id).where(UserQuestionRecord.question_id == question.id).order_by(UserQuestionRecord.time)
     user_question_record = session.exec(select_statement).first()
     if user_question_record:
         user_question_record.rating = rating

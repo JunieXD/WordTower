@@ -58,7 +58,7 @@ def _prepare_generation_data(user_id: int):
             prompt_input = [w.text for w in words]
         else:
             prompt_input = words[0].text
-            
+        
         prompt = get_question_prompt(q_type, prompt_input)
         if not prompt:
             return None
@@ -123,6 +123,16 @@ async def push_question_to_queue(redis: Redis, user_id: int, question: Question)
         data = json.dumps(jsonable_encoder(question))
         key = f"{QUEUE_KEY_PREFIX}{user_id}"
         await redis.lpush(key, data)
+    except Exception as e:
+        print(e)
+
+async def clear_question_queue(redis: Redis, user_id: int):
+    """
+    清空用户的题目队列。
+    """
+    try:
+        key = f"{QUEUE_KEY_PREFIX}{user_id}"
+        await redis.delete(key)
     except Exception as e:
         print(e)
 

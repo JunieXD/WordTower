@@ -19,6 +19,9 @@ from app.api.api_responses import success_response, forbidden_response, not_foun
 from fastapi import Depends
 from app.db.word import get_words_by_ids, get_user_selected_words_count
 from app.models.user_library_select import UpdatePriorityRequest
+from app.db.question import clear_question_queue
+from app.db.redis import get_redis
+from redis.asyncio import Redis
 
 router = APIRouter(prefix="/api/library", tags=["library"])
 
@@ -54,11 +57,13 @@ async def remove_library(session: SessionDep, library_id: int, user_in: User = D
     return success_response(message=f"删除词库{library.name}成功！")
 
 @router.post("/toggle_user_library_select/{library_id}")
-async def toggle_user_library_select(session: SessionDep, library_id: int, user_in: User = Depends(get_current_user)):
+async def toggle_user_library_select(session: SessionDep, library_id: int, user_in: User = Depends(get_current_user), redis: Redis = Depends(get_redis)):
     library = get_library_by_id(session, library_id)
     if library is None:
         return not_found_response(message="词库不存在！")
     selected = toggle_user_library_select_(session, user_in, library)
+    # 切换词库后清空用户的题目队列
+    await clear_question_queue(redis, user_in.id)
     return success_response(message=f"词库{library.name}{'成功选中' if selected else '取消选中'}！")
 
 @router.put("/batch_update_library_priorities")
