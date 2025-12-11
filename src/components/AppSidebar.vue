@@ -25,7 +25,7 @@ const items = [
         <SidebarGroupContent>
           <SidebarMenu>
             <SidebarMenuItem v-for="item in items" :key="item.title">
-              <RouterLink :to="'/' + item.url" custom v-slot="{ navigate }">
+              <RouterLink :to="'/' + item.url" replace custom v-slot="{ navigate }">
                 <SidebarMenuButton
                   asChild
                   class="my-1 h-10 cursor-pointer select-none hover:bg-accent/50 active:bg-accent transition-all"

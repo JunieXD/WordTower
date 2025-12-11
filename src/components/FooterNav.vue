@@ -16,6 +16,7 @@ const items = [
       v-for="item in items"
       :key="item.url"
       :to="'/' + item.url"
+      replace
       custom
       v-slot="{ navigate, isExactActive }"
     >

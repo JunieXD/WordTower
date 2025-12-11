@@ -86,8 +86,11 @@ const headerConfig = computed(() => {
 </script>
 
 <template>
-  <header class="grid grid-cols-3 items-center px-8 py-4 border-b border-border bg-white">
-    <div class="flex items-center gap-3">
+  <header
+    class="grid grid-cols-3 items-center py-4 border-b border-border bg-white"
+    :class="route.name === 'combat' ? 'px-2' : 'px-8'"
+  >
+    <div class="flex items-center gap-2">
       <button
         v-if="headerConfig.leftAction === 'back'"
         @click="route.name === 'combat' ? handleAttackBack() : handleBack()"
