@@ -49,3 +49,4 @@ uv run uvicorn app.main:app --reload
 - [ ] 固定层数出现 Boss、休息层
 - [ ] 切换词库清空redis
 - [x] prompt：不同选项出现同样内容；选项里标明了错误选项；abcd均匀出现的伪随机方法
+- [ ] 每日挑战

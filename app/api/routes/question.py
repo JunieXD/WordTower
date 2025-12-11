@@ -72,6 +72,7 @@ async def check_answer(question_check_in: QuestionCheck, user_in: User = Depends
         result = await generate_text(prompt)
         return success_response(message="检查完成", data=jsonable_encoder(result))
     except Exception as e:
+        print(e)
         return internal_server_error_response(message=f"检查失败: {str(e)}", details={"error": str(e)})
     
 @router.post("/answer/{question_id}")
@@ -90,6 +91,7 @@ def answer_question(
         link_level_question(session, answer.level_id, question_id)
         return success_response(message="作答记录成功")
     except Exception as e:
+        print(e)
         return internal_server_error_response(message=f"作答记录失败: {str(e)}", details={"error": str(e)})
     
 @router.post("/report/{question_id}")
@@ -106,6 +108,7 @@ def report_question(
         user_question_report(session, user_in, question, report.report)
         return success_response(message="报告成功")
     except Exception as e:
+        print(e)
         return internal_server_error_response(message=f"报告失败: {str(e)}", details={"error": str(e)})
     
 @router.post("/rating/{question_id}")
@@ -122,4 +125,5 @@ def rating_question(
         user_question_rating(session, user_in, question, rating.rating)
         return success_response(message="评分成功")
     except Exception as e:
+        print(e)
         return internal_server_error_response(message=f"评分失败: {str(e)}", details={"error": str(e)})
