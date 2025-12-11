@@ -100,13 +100,20 @@ onMounted(async () => {
               @click="upgradeStore.handleUpgrade(item)"
               class="flex items-center gap-1 rounded-3xl"
               :class="
-                upgradeStore.canAfford(item)
+                upgradeStore.canAfford(item) && !upgradeStore.isUpgrading
                   ? 'bg-green-500 cursor-pointer'
                   : 'bg-gray-500 cursor-not-allowed'
               "
+              :disabled="upgradeStore.isUpgrading || !upgradeStore.canAfford(item)"
             >
-              <Icon icon="mdi:coin" class="size-4" />
-              {{ item.UpgradeCost }}
+              <template v-if="upgradeStore.isUpgrading">
+                <Icon icon="mdi:loading" class="size-4 animate-spin" />
+                升级中...
+              </template>
+              <template v-else>
+                <Icon icon="mdi:coin" class="size-4" />
+                {{ item.UpgradeCost }}
+              </template>
             </Button>
           </div>
         </CardContent>

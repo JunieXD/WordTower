@@ -49,7 +49,8 @@ const highlightedStory = computed(() => {
   if (!story.value || !targetWord.value) return story.value || ''
 
   // 使用全局正则表达式匹配所有出现的 targetWord（不区分大小写）
-  const regex = new RegExp(`(${targetWord.value})`, 'gi')
+  // \b 表示单词边界，确保只匹配完整的单词
+  const regex = new RegExp(`\\b(${targetWord.value})\\b`, 'gi')
   return story.value.replace(regex, '<strong class="underline">$1</strong>')
 })
 

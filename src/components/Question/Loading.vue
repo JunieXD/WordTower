@@ -1,4 +1,10 @@
 <template>
+  <!-- 加载提示 -->
+  <div class="text-center mb-4 text-sm text-muted-foreground">
+    <p>正在加载题目...</p>
+    <p class="text-xs mt-1">首次加载需要10秒左右，请耐心等待</p>
+  </div>
+
   <!-- 题目内容骨架屏 -->
   <Card class="p-4">
     <div class="space-y-3">

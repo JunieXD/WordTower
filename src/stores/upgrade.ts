@@ -29,6 +29,7 @@ export const useUpgradeStore = defineStore('upgrade', () => {
   const notificationStore = useNotificationStore()
   const userProfileStore = useUserProfileStore()
   const upgradeValues = ref<UpgradeValues | null>(null)
+  const isUpgrading = ref(false)
 
   async function fetchUpgradeValues() {
     try {
@@ -51,23 +52,31 @@ export const useUpgradeStore = defineStore('upgrade', () => {
 
   // 升级处理
   const handleUpgrade = async (item: UpgradeItem) => {
-    const res = await request.post(`/api/upgrade/${item.key}`)
+    // 防止重复点击
+    if (isUpgrading.value) return
 
-    if (res.data.success) {
-      notificationStore.addNotification({
-        title: '升级成功',
-        description: `${item.name} 已提升至 ${formatValue(item.key, item.NextValue)}`,
-        variant: 'default',
-        duration: 2000,
-      })
-      await userProfileStore.getProfile(true)
-    } else {
-      notificationStore.addNotification({
-        title: '升级失败',
-        description: res.data.message,
-        variant: 'destructive',
-        duration: 2000,
-      })
+    isUpgrading.value = true
+    try {
+      const res = await request.post(`/api/upgrade/${item.key}`)
+
+      if (res.data.success) {
+        notificationStore.addNotification({
+          title: '升级成功',
+          description: `${item.name} 已提升至 ${formatValue(item.key, item.NextValue)}`,
+          variant: 'default',
+          duration: 2000,
+        })
+        await userProfileStore.getProfile(true)
+      } else {
+        notificationStore.addNotification({
+          title: '升级失败',
+          description: res.data.message,
+          variant: 'destructive',
+          duration: 2000,
+        })
+      }
+    } finally {
+      isUpgrading.value = false
     }
   }
 
@@ -87,6 +96,7 @@ export const useUpgradeStore = defineStore('upgrade', () => {
 
   return {
     upgradeValues,
+    isUpgrading,
     fetchUpgradeValues,
     getUpgradeValues,
     handleUpgrade,
