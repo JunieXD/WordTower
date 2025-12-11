@@ -3,7 +3,7 @@ from app.models.question import Question
 from app.models.question_word_link import QuestionWordLink
 from app.models.word import Word
 from app.utils.prompt import get_question_prompt
-from app.utils.LLM import generate_text
+from app.utils.LLM import generate_question_with_validation, QuestionValidationError
 from app.utils.config import settings, get_question_type_weights
 from sqlmodel import select
 import random
@@ -103,8 +103,8 @@ async def generate_single_question(user_id: int) -> Question | None:
             
         q_type, word_ids, prompt = result
         
-        # 2. 异步调用 LLM (I/O bound)
-        content = await generate_text(prompt)
+        # 2. 异步调用 LLM 并验证生成的题目 (I/O bound)
+        content = await generate_question_with_validation(prompt, q_type)
         
         # 3. 在线程池中执行同步的数据库写入操作
         question = await asyncio.to_thread(_save_generated_question, q_type, content, word_ids)

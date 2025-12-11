@@ -40,13 +40,11 @@ uv run uvicorn app.main:app --reload
 
 ## TODOS
 
-- [ ] 对AI返回的JSON进行check
-    - [ ] 原文中包含目标单词
-    - [ ] 正确选项为 ABCD 中的一个
-    - [ ] 没有两个选项内容完全相同
+- [x] 对AI返回的JSON进行check
 - [ ] 好友功能
 - [ ] 排行榜相关API
 - [ ] 固定层数出现 Boss、休息层
 - [ ] 切换词库清空redis
 - [x] prompt：不同选项出现同样内容；选项里标明了错误选项；abcd均匀出现的伪随机方法
 - [ ] 每日挑战
+- [ ] 调整数值
