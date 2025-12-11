@@ -34,10 +34,6 @@ jobs:
              /usr/bin/uv export --format requirements-txt --no-hashes > requirements.txt
           fi
 
-          # 更新数据库
-          cd app
-          uv run alembic upgrade head
-
           # 重启后端容器
           echo "🔄 重启后端容器..."
           # 这里使用 docker ps 动态找到容器 ID 并重启
