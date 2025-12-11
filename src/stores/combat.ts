@@ -146,6 +146,14 @@ export const useCombatStore = defineStore('combat', () => {
     checkoutInfo.value = null
   }
 
+  async function ratingQuestion(questionId: number, rating: number) {
+    await request.post(`/api/question/rating/${questionId}`, { rating })
+  }
+
+  async function reportQuestion(questionId: number, report: string) {
+    await request.post(`/api/question/report/${questionId}`, { report })
+  }
+
   return {
     combatInfo,
     currentQuestion,
@@ -158,5 +166,7 @@ export const useCombatStore = defineStore('combat', () => {
     EndCombat,
     fetchCheckoutInfo,
     clearCheckout,
+    ratingQuestion,
+    reportQuestion,
   }
 })

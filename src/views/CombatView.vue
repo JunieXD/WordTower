@@ -42,13 +42,50 @@
         @is-correct="handleIsCorrect"
         @continue="handleContinue"
       ></component>
+      <!--反馈区域-->
+      <div
+        v-if="combatStore.currentQuestion"
+        class="mt-2 pt-2 border-t border-gray-700/30 flex flex-col gap-2"
+      >
+        <div class="flex items-center justify-between px-2">
+          <div class="flex gap-1" title="评分">
+            <Icon
+              v-for="i in 5"
+              :key="i"
+              :icon="i <= userRating ? 'mdi:star' : 'mdi:star-outline'"
+              class="size-6 cursor-pointer text-yellow-500 hover:scale-110 transition-transform"
+              @click="rateQuestion(i)"
+            />
+          </div>
+          <button
+            @click="showFeedback = !showFeedback"
+            class="text-sm text-gray-500 cursor-pointer"
+          >
+            {{ showFeedback ? '取消' : '反馈' }}
+          </button>
+        </div>
+
+        <div
+          v-if="showFeedback"
+          class="flex gap-2 px-2 pb-2 animate-in slide-in-from-top-2 fade-in duration-200"
+        >
+          <input
+            v-model="feedbackContent"
+            type="text"
+            placeholder="请输入反馈..."
+            class="flex-1 rounded-lg px-2 py-1 text-sm text-black border border-gray-400 focus:outline-none transition-colors"
+            @keyup.enter="submitFeedback"
+          />
+          <Button @click="submitFeedback" variant="outline" class="rounded-lg">提交</Button>
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
-import { ref, onMounted, onBeforeMount } from 'vue'
+import { ref, onMounted, onBeforeMount, watch } from 'vue'
 import type { Component } from 'vue'
 import gsap from 'gsap'
 import { useRouter } from 'vue-router'
@@ -57,8 +94,9 @@ import QuestionChoice from '@/components/Question/QuestionChoice.vue'
 import QuestionInput from '@/components/Question/QuestionInput.vue'
 import QuestionSort from '@/components/Question/QuestionSort.vue'
 import Loading from '@/components/Question/Loading.vue'
-
+import { Button } from '@/components/ui/button'
 import dungeonBackground from '@/assets/background/dungeon.jpg'
+import { useNotificationStore } from '@/stores/notification'
 
 // 角色动画资源使用 import，确保在构建时被打包
 import playerIdleAnimationSrc from '@/assets/character/Elf/Idle.gif'
@@ -100,6 +138,42 @@ const currentEnemyAnimation = ref(enemyIdleAnimation)
 
 const combatStore = useCombatStore()
 const router = useRouter()
+const notificationStore = useNotificationStore()
+
+const userRating = ref(0)
+const showFeedback = ref(false)
+const feedbackContent = ref('')
+
+watch(
+  () => combatStore.currentQuestion?.id,
+  () => {
+    userRating.value = 0
+    showFeedback.value = false
+    feedbackContent.value = ''
+  },
+)
+
+const rateQuestion = async (rating: number) => {
+  userRating.value = rating
+  if (combatStore.currentQuestion) {
+    await combatStore.ratingQuestion(combatStore.currentQuestion.id, rating)
+    notificationStore.addNotification({
+      title: '评分成功',
+      description: '感谢您的反馈！',
+    })
+  }
+}
+
+const submitFeedback = async () => {
+  if (!feedbackContent.value.trim() || !combatStore.currentQuestion) return
+  await combatStore.reportQuestion(combatStore.currentQuestion.id, feedbackContent.value)
+  showFeedback.value = false
+  feedbackContent.value = ''
+  notificationStore.addNotification({
+    title: '提交成功',
+    description: '感谢您的反馈！',
+  })
+}
 
 const handleIsCorrect = async (isCorrect: boolean) => {
   if (combatStore.currentQuestion) {

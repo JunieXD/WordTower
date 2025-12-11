@@ -48,9 +48,9 @@ const targetWord = computed(() => {
 const highlightedStory = computed(() => {
   if (!story.value || !targetWord.value) return story.value || ''
 
-  // 使用全局正则表达式匹配所有出现的 targetWord（不区分大小写）
-  // \b 表示单词边界，确保只匹配完整的单词
-  const regex = new RegExp(`\\b(${targetWord.value})\\b`, 'gi')
+  // 使用全局正则表达式匹配目标单词及其常见变形（复数、过去式、进行时等）
+  // 匹配模式：targetWord + 可选后缀 (s, es, ed, ing, d, er, est, ly 等)
+  const regex = new RegExp(`\\b(${targetWord.value}(?:s|es|ed|ing|d|er|est|ly)?)\\b`, 'gi')
   return story.value.replace(regex, '<strong class="underline">$1</strong>')
 })
 
