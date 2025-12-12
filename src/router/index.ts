@@ -11,7 +11,7 @@ const CombatView = () => import('@/views/CombatView.vue')
 const CheckoutView = () => import('@/views/CheckoutView.vue')
 const CombatLayout = () => import('@/layouts/CombatLayout.vue')
 const IntroductionView = () => import('@/views/IntroductionView.vue')
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHistory, type RouteLocationNormalized } from 'vue-router'
 import { useUserProfileStore } from '@/stores/userProfile'
 import { useNotificationStore } from '@/stores/notification'
 import { useLibraryStore } from '@/stores/library'
@@ -52,13 +52,19 @@ const routes = [
     path: '/login',
     name: 'login',
     component: LoginView,
-    beforeEnter: async () => {
+    beforeEnter: async (to: RouteLocationNormalized) => {
       const userProfileStore = useUserProfileStore()
       if (!userProfileStore.profile) {
         const profile = await userProfileStore.getProfile(true)
         if (!profile) {
-          return { name: 'login' }
+          // 用户未登录，允许继续导航到登录页，保留 query 参数
+          return true
         }
+      }
+      // 用户已登录，检查是否有 redirect 参数
+      const redirect = to.query.redirect as string | undefined
+      if (redirect) {
+        return redirect // 跳转到 redirect 指定的路径
       }
       return { name: 'home' }
     },
