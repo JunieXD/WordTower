@@ -22,7 +22,7 @@ const enter = () => {
       <p class="text-md text-gray-500 lg:text-xl">一款基于 LLM 和 Roguelike 机制的单词闯塔小游戏</p>
     </div>
     <Button
-      class="my-20 h-12 w-1/3 min-w-20 max-w-40 text-lg rounded-4xl"
+      class="my-15 h-12 w-1/3 min-w-20 max-w-40 text-lg rounded-4xl"
       @click="enter"
       variant="outline"
     >

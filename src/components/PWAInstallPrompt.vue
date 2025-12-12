@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { X, Download } from 'lucide-vue-next'
@@ -9,6 +10,7 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
 }
 
+const route = useRoute()
 const showPrompt = ref(false)
 const deferredPrompt = ref<BeforeInstallPromptEvent | null>(null)
 const isInstalled = ref(false)
@@ -16,6 +18,10 @@ const DISMISS_STORAGE_KEY = 'pwa-install-dismissed'
 const DISMISS_DURATION = 24 * 60 * 60 * 1000 // 24 小时
 
 const shouldShowPrompt = () => {
+  // 只在 /home 页面显示提示
+  if (route.name !== 'home') {
+    return false
+  }
   if (isInstalled.value) {
     return false
   }
@@ -28,6 +34,16 @@ const shouldShowPrompt = () => {
   }
   return true
 }
+
+// 监听路由变化，在进入/离开 home 页面时更新提示状态
+watch(
+  () => route.name,
+  () => {
+    if (deferredPrompt.value) {
+      showPrompt.value = shouldShowPrompt()
+    }
+  },
+)
 
 onMounted(() => {
   // 检测是否已经安装
