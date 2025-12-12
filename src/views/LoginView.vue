@@ -38,7 +38,7 @@ const login = async () => {
       duration: 2000,
     })
     // 从 URL 查询参数获取 redirect
-    const redirect = route.query.redirect || '/'
+    const redirect = route.query.redirect || '/home'
     router.push(redirect as string)
   } else {
     notificationStore.addNotification({

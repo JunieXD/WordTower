@@ -10,6 +10,7 @@ const LeaderboardView = () => import('@/views/LeaderboardView.vue')
 const CombatView = () => import('@/views/CombatView.vue')
 const CheckoutView = () => import('@/views/CheckoutView.vue')
 const CombatLayout = () => import('@/layouts/CombatLayout.vue')
+const IntroductionView = () => import('@/views/IntroductionView.vue')
 import { createRouter, createWebHistory } from 'vue-router'
 import { useUserProfileStore } from '@/stores/userProfile'
 import { useNotificationStore } from '@/stores/notification'
@@ -18,10 +19,14 @@ import { useLibraryStore } from '@/stores/library'
 const routes = [
   {
     path: '/',
+    name: 'introduction',
+    component: IntroductionView,
+  },
+  {
+    path: '/',
     component: DefaultLayout,
     meta: { requiresAuth: true }, // 父路由设置，所有子路由继承
     children: [
-      { path: '', redirect: { name: 'home' } },
       { path: 'home', name: 'home', component: HomeView },
       {
         path: 'library',
@@ -43,7 +48,21 @@ const routes = [
       { path: 'checkout', name: 'checkout', component: CheckoutView },
     ],
   },
-  { path: '/login', name: 'login', component: LoginView },
+  {
+    path: '/login',
+    name: 'login',
+    component: LoginView,
+    beforeEnter: async () => {
+      const userProfileStore = useUserProfileStore()
+      if (!userProfileStore.profile) {
+        const profile = await userProfileStore.getProfile(true)
+        if (!profile) {
+          return { name: 'login' }
+        }
+      }
+      return { name: 'home' }
+    },
+  },
   {
     path: '/:pathMatch(.*)*',
     name: 'NotFound',
