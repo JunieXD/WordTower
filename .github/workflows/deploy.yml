@@ -20,7 +20,7 @@ jobs:
         password: ${{ secrets.PASSWORD }}
         script: |
           # 后端网站目录
-          BACKEND_PATH="/root/WordTower-backend-python"
+          BACKEND_PATH="/opt/1panel/www/sites/wt/WordTower-backend-python"
           
           # 后端容器名称关键字 (去 1Panel 容器列表看)
           BACKEND_CONTAINER_NAME="wt"
