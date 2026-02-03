@@ -22,6 +22,12 @@ jobs:
         script: |
           # 前端网站目录
           FRONTEND_PATH="/opt/1panel/www/sites/wt.juniexd.cn/index"
+
+          # 关键点：手动加载环境变量
+          export NVM_DIR="$HOME/.nvm"
+          [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+          source /etc/profile
+          source ~/.bashrc
           
           echo "🚀 开始部署前端..."
           cd $FRONTEND_PATH
