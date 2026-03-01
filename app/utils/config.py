@@ -1,21 +1,28 @@
 import os
 import random
 
+
 def get_question_type_weights(floor: int) -> list[int]:
     """根据楼层返回题目类型权重"""
-    return [100 - min(floor / 10 * 4, 20), min(floor / 10 * 2, 10), min(floor / 10 * 2, 10)]
+    return [
+        100 - min(floor / 10 * 4, 20),
+        min(floor / 10 * 2, 10),
+        min(floor / 10 * 2, 10),
+    ]
     # return [0, 100, 0]
+
 
 def get_enemy_hp(floor: int) -> int:
     return int(floor * random.random()) + 10
 
+
 def get_enemy_attack(floor: int) -> int:
     return int(floor * random.random()) + 10
 
+
 class Settings:
     DATABASE_URL: str = os.getenv(
-        "DATABASE_URL",
-        "postgresql://postgres:123456@localhost:5432/wordtower"
+        "DATABASE_URL", "postgresql://postgres:123456@localhost:5432/wordtower"
     )
 
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
@@ -38,11 +45,14 @@ class Settings:
     # 火山方舟 API Key
     ARK_API_KEY: str = os.getenv("ARK_API_KEY", "")
     # 火山方舟 API Base URL
-    ARK_API_BASE_URL: str = os.getenv("ARK_API_BASE_URL", "https://ark.cn-beijing.volces.com/api/v3")
+    ARK_API_BASE_URL: str = os.getenv(
+        "ARK_API_BASE_URL", "https://ark.cn-beijing.volces.com/api/v3"
+    )
     # 火山方舟 API Model ID
-    ARK_API_MODEL_ID: str = os.getenv("ARK_API_MODEL_ID", "doubao-seed-1-6-251015")
+    ARK_API_MODEL_ID: str = os.getenv("ARK_API_MODEL_ID", "doubao-seed-2-0-mini-260215")
 
     # 题目类型
     QUESTION_TYPES = ["context_guess", "cloze_test", "keyword_translation"]
+
 
 settings = Settings()

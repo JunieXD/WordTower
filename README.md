@@ -4,9 +4,7 @@
 
 ### 数据库初始化
 
-```
-uv run python -m app.scripts.init_db
-```
+使用 PostgreSQL，创建名为 wordtower 的 database。
 
 ### 数据库迁移
 
@@ -21,6 +19,8 @@ uv run alembic downgrade -1
 ```
 
 ### 导入词库
+
+下载 [ecdict-sqlite-28.zip](https://github.com/skywind3000/ECDICT/releases/tag/1.0.28) 将其解压至任意路径 `<sqlite_db_path>`
 
 ```
 uv run python -m app.scripts.import_words <sqlite_db_path>
