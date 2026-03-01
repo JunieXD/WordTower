@@ -26,27 +26,39 @@ const confirm = ref('')
 
 // 登录函数
 const login = async () => {
-  const res = await request.post('/api/auth/login', {
-    username: username.value,
-    password: password.value,
-  })
-  if (res.data.success) {
-    notificationStore.addNotification({
-      title: '登录成功',
-      description: '您已成功登录。',
-      variant: 'default',
-      duration: 2000,
+  try {
+    const res = await request.post('/api/auth/login', {
+      username: username.value,
+      password: password.value,
     })
-    // 从 URL 查询参数获取 redirect
-    const redirect = route.query.redirect || '/home'
-    router.push(redirect as string)
-  } else {
+    if (res.data.success) {
+      notificationStore.addNotification({
+        title: '登录成功',
+        description: '您已成功登录。',
+        variant: 'default',
+        duration: 2000,
+      })
+      // 从 URL 查询参数获取 redirect
+      const redirect = route.query.redirect || '/home'
+      router.push(redirect as string)
+    } else {
+      notificationStore.addNotification({
+        title: '登录失败',
+        description: res.data.message,
+        variant: 'destructive',
+        duration: 4000,
+      })
+    }
+  } catch (error) {
+    let errorMessage = '未知错误'
+    if (error instanceof Error) errorMessage = error.message
+    else errorMessage = String(error)
     notificationStore.addNotification({
-      title: '登录失败',
-      description: res.data.message,
-      variant: 'destructive',
-      duration: 4000,
-    })
+        title: '登录失败',
+        description: errorMessage,
+        variant: 'destructive',
+        duration: 4000,
+      })
   }
 }
 
@@ -61,25 +73,38 @@ const register = async () => {
     })
     return
   }
-  const res = await request.post('/api/auth/register', {
-    username: username.value,
-    password: password.value,
-  })
-  if (res.data.success) {
-    notificationStore.addNotification({
-      title: '注册成功',
-      description: '您已成功注册。',
-      variant: 'default',
-      duration: 2000,
+  try {
+    const res = await request.post('/api/auth/register', {
+      username: username.value,
+      password: password.value,
     })
-    mode.value = 'login'
-  } else {
+    if (res.data.success) {
+      notificationStore.addNotification({
+        title: '注册成功',
+        description: '您已成功注册。',
+        variant: 'default',
+        duration: 2000,
+      })
+      mode.value = 'login'
+    } else {
+      notificationStore.addNotification({
+        title: '注册失败',
+        description: res.data.message,
+        variant: 'destructive',
+        duration: 4000,
+      })
+    }
+  }
+  catch (error) {
+    let errorMessage = '未知错误'
+    if (error instanceof Error) errorMessage = error.message
+    else errorMessage = String(error)
     notificationStore.addNotification({
-      title: '注册失败',
-      description: res.data.message,
-      variant: 'destructive',
-      duration: 4000,
-    })
+        title: '登录失败',
+        description: errorMessage,
+        variant: 'destructive',
+        duration: 4000,
+      })
   }
 }
 
@@ -120,8 +145,9 @@ const handleSubmit = () => {
             注 册
           </Button>
         </CardTitle>
-        <CardDescription class="tracking-wider">
-          {{ mode === 'login' ? '请使用用户名和密码登录。' : '请填写信息完成注册。' }}
+        <CardDescription class="tracking-wider flex flex-col gap-2">
+          <div>{{ mode === 'login' ? '请使用用户名和密码登录。' : '请填写信息完成注册。' }}</div>
+          <div>测试用户名：test，密码：123456</div>
         </CardDescription>
       </CardHeader>
       <CardContent class="grow content-center">
