@@ -2,40 +2,45 @@ name: Deploy to 1Panel VPS
 
 on:
   push:
-    branches: [ main ]  # 只有推送到 main 分支时才触发
+    branches: [main] # 只有推送到 main 分支时才触发
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: 1. 拉取代码到 GitHub 服务器
+        uses: actions/checkout@v4
 
-    - name: Deploy via SSH
-      uses: appleboy/ssh-action@master
-      with:
-        host: ${{ secrets.HOST }}
-        port: ${{ secrets.PORT }}
-        username: ${{ secrets.USERNAME }}
-        password: ${{ secrets.PASSWORD }}
-        script: |
-          # 前端网站目录
-          FRONTEND_PATH="/opt/1panel/www/sites/wt.juniexd.cn/index"
+      - name: 2. 在 GitHub 服务器上配置 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
 
-          # 关键点：手动加载环境变量
-          export NVM_DIR="$HOME/.nvm"
-          [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-          source /etc/profile
-          source ~/.bashrc
-          
-          echo "🚀 开始部署前端..."
-          cd $FRONTEND_PATH
-          git pull origin main
-          
-          # 安装依赖并构建
-          echo "📦 构建 Vue..."
+      - name: 3. 安装依赖并打包 (在 GitHub 上运行，不消耗你 VPS 的内存)
+        run: |
           npm install
           npm run build
-          
-          echo "✅ 前端部署完成！"
+          # 此时你的项目根目录下会生成一个 dist 文件夹
+
+      - name: 4. 登录 VPS 清理旧的网站文件 (防止旧的无用文件堆积)
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          port: ${{ secrets.PORT }}
+          username: ${{ secrets.USERNAME }}
+          password: ${{ secrets.PASSWORD }}
+          script: |
+            # 清空原来的网站目录，准备迎接新文件
+            rm -rf /opt/1panel/www/sites/wt.juniexd.cn/index/*
+
+      - name: 5. 把打包好的 dist 文件夹上传到你的 VPS
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          port: ${{ secrets.PORT }}
+          username: ${{ secrets.USERNAME }}
+          password: ${{ secrets.PASSWORD }}
+          source: 'dist/*' # 只上传打包生成的文件
+          target: '/opt/1panel/www/sites/wt.juniexd.cn/index' # 你的 1Panel 网站目录
+          strip_components: 1 # 关键配置：去掉 'dist/' 这一层目录，直接把里面的文件放进 index 文件夹
