@@ -12,6 +12,33 @@ logger = get_logger(__name__)
 MAX_RETRY_COUNT = 3
 
 
+def _preview_text(text: str, limit: int = 160) -> str:
+    """截断长文本用于 debug 输出。"""
+    normalized = " ".join(text.split())
+    if len(normalized) <= limit:
+        return normalized
+    return f"{normalized[:limit]}..."
+
+
+def _try_parse_first_json_object(content: str) -> Dict[str, Any]:
+    """
+    尝试从文本中解析第一个 JSON 对象。
+
+    允许模型在 JSON 后附带多余文本（会忽略尾随内容）。
+    """
+    decoder = json.JSONDecoder()
+
+    # 1) 直接从开头解析
+    obj, end = decoder.raw_decode(content)
+    if not isinstance(obj, dict):
+        raise ValueError(f"LLM 返回的 JSON 顶层必须是对象，当前为: {type(obj).__name__}")
+
+    trailing = content[end:].strip()
+    if trailing:
+        logger.warning("LLM 返回含尾随文本，已忽略：%s", _preview_text(trailing))
+    return obj
+
+
 class QuestionValidationError(Exception):
     """题目验证失败时抛出的异常"""
     def __init__(self, message: str, errors: List[str]):
@@ -276,10 +303,28 @@ def _parse_json_response(content: str) -> Dict[str, Any]:
     # 移除模型返回中的思考内容，例如
     # <think> ... </think> {"your": "json"}
     content = re.sub(r"<think>[\s\S]*?</think>\s*", "", content)
+    logger.debug("LLM 原始内容清洗后预览：%s", _preview_text(content))
 
     try:
-        return json.loads(content)
-    except json.JSONDecodeError as e:
+        parsed = _try_parse_first_json_object(content)
+        logger.debug(
+            "LLM JSON 解析成功：顶层键=%s",
+            list(parsed.keys()) if isinstance(parsed, dict) else type(parsed).__name__,
+        )
+        return parsed
+    except (json.JSONDecodeError, ValueError) as e:
+        # 2) 若开头不是 JSON，尝试从第一个 '{' 开始解析
+        first_brace = content.find("{")
+        if first_brace > 0:
+            candidate = content[first_brace:]
+            try:
+                parsed = _try_parse_first_json_object(candidate)
+                logger.warning("LLM 返回前缀存在非 JSON 文本，已自动跳过前缀")
+                logger.debug("LLM JSON 解析成功（跳过前缀）：顶层键=%s", list(parsed.keys()))
+                return parsed
+            except (json.JSONDecodeError, ValueError):
+                pass
+
         logger.error("解析 LLM 返回 JSON 失败：错误=%s", str(e))
         logger.error("解析 LLM 返回 JSON 失败：清理后内容=%s", content)
         raise ValueError(f"LLM 返回的内容不是有效的 JSON 格式: {e}")
@@ -287,6 +332,12 @@ def _parse_json_response(content: str) -> Dict[str, Any]:
 
 async def _call_llm(prompt: str) -> Dict[str, Any]:
     """调用 LLM 并返回解析后的 JSON"""
+    logger.debug(
+        "LLM 调用开始：model=%s prompt长度=%s prompt预览=%s",
+        settings.ARK_API_MODEL_ID,
+        len(prompt),
+        _preview_text(prompt),
+    )
     response = await client.chat.completions.create(
         model=settings.ARK_API_MODEL_ID,
         messages=[
@@ -296,6 +347,7 @@ async def _call_llm(prompt: str) -> Dict[str, Any]:
         extra_body={"thinking": {"type": "disabled"}, "temperature": 0.7}
     )
     content = response.choices[0].message.content
+    logger.debug("LLM 返回内容预览：%s", _preview_text(content or ""))
     return _parse_json_response(content)
 
 
@@ -327,13 +379,23 @@ async def generate_question_with_validation(
         ValueError: JSON 解析错误
     """
     last_errors = []
+    logger.debug("题目生成校验开始：题型=%s 最大重试=%s", question_type, max_retries)
     
     for attempt in range(max_retries):
         try:
+            logger.debug("题目生成校验尝试：题型=%s attempt=%s/%s", question_type, attempt + 1, max_retries)
             content = await _call_llm(prompt)
             
             # 验证题目内容
             is_valid, errors = validate_question(question_type, content)
+            logger.debug(
+                "题目生成校验结果：题型=%s attempt=%s/%s is_valid=%s errors=%s",
+                question_type,
+                attempt + 1,
+                max_retries,
+                is_valid,
+                errors,
+            )
             
             if is_valid:
                 if attempt > 0:

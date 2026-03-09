@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import logging
+import os
+import sys
 from contextvars import ContextVar, Token
 from datetime import datetime
 from pathlib import Path
@@ -10,8 +12,32 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_LOG_DIR = PROJECT_ROOT / "logs"
 DEFAULT_LOG_LEVEL = logging.INFO
 DEFAULT_MAX_LOG_FILES = 7
+DEBUG_SWITCH_ENV = "WORDTOWER_DEBUG"
 
 _user_label_var: ContextVar[str] = ContextVar("user_label", default="未登录")
+
+
+def _env_to_bool(value: str | None, default: bool = False) -> bool:
+    """将环境变量字符串解析为布尔值。"""
+    if value is None:
+        return default
+    normalized = value.strip().lower()
+    if normalized in {"1", "true", "yes", "on", "debug"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    return default
+
+
+def is_debug_logging_enabled() -> bool:
+    """
+    是否开启调试日志。
+
+    通过环境变量 `WORDTOWER_DEBUG` 控制：
+    - 1 / true / on / debug => 开启
+    - 0 / false / off => 关闭
+    """
+    return _env_to_bool(os.getenv(DEBUG_SWITCH_ENV), default=False)
 
 
 class RequestContextFilter(logging.Filter):
@@ -97,7 +123,10 @@ def setup_logging(
     if getattr(root_logger, "_wordtower_logging_ready", False):
         return
 
-    root_logger.setLevel(level)
+    debug_enabled = is_debug_logging_enabled()
+    effective_level = logging.DEBUG if debug_enabled else level
+
+    root_logger.setLevel(effective_level)
     for handler in list(root_logger.handlers):
         root_logger.removeHandler(handler)
 
@@ -108,22 +137,37 @@ def setup_logging(
     context_filter = RequestContextFilter()
 
     file_handler = DailyFileHandler(log_dir=log_dir, max_files=max_files, encoding="utf-8")
-    file_handler.setLevel(level)
+    file_handler.setLevel(effective_level)
     file_handler.setFormatter(formatter)
     file_handler.addFilter(context_filter)
 
     root_logger.addHandler(file_handler)
 
-    # 将 uvicorn 日志也统一收敛到文件，避免输出到控制台。
+    if debug_enabled:
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setLevel(logging.DEBUG)
+        console_handler.setFormatter(formatter)
+        console_handler.addFilter(context_filter)
+        root_logger.addHandler(console_handler)
+
+    # debug 开关关闭时，uvicorn 日志只写文件；开启时同时在终端显示。
     for logger_name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
         uvicorn_logger = logging.getLogger(logger_name)
         uvicorn_logger.handlers.clear()
-        uvicorn_logger.setLevel(level)
+        uvicorn_logger.setLevel(effective_level)
         uvicorn_logger.propagate = True
 
     # 第三方库日志默认降级，避免刷屏影响可读性。
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
+
+    root_logger.info(
+        "日志初始化完成：debug=%s 级别=%s 终端输出=%s 开关=%s",
+        debug_enabled,
+        logging.getLevelName(effective_level),
+        debug_enabled,
+        DEBUG_SWITCH_ENV,
+    )
 
     setattr(root_logger, "_wordtower_logging_ready", True)
 

@@ -38,6 +38,25 @@ uv run python -m app.scripts.create_tag_libraries
 uv run uvicorn app.main:app --reload
 ```
 
+### Debug 日志开关（终端实时输出）
+
+默认只写入 `logs/*.log`。  
+设置环境变量 `WORDTOWER_DEBUG=1` 后，会开启完整 `DEBUG` 日志，并实时打印到终端。
+
+PowerShell 示例：
+
+```powershell
+$env:WORDTOWER_DEBUG="1"
+uv run uvicorn app.main:app --reload
+```
+
+关闭调试日志：
+
+```powershell
+$env:WORDTOWER_DEBUG="0"
+uv run uvicorn app.main:app --reload
+```
+
 ## TODOS
 
 - [x] 对AI返回的JSON进行check
