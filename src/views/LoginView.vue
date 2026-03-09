@@ -13,16 +13,21 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useNotificationStore } from '@/stores/notification'
+import { useUserProfileStore } from '@/stores/userProfile'
 import { useRouter, useRoute } from 'vue-router'
 
 const router = useRouter()
 const route = useRoute()
 const notificationStore = useNotificationStore()
+const userProfileStore = useUserProfileStore()
 
 const mode = ref<'login' | 'register'>('login')
-const username = ref('')
-const password = ref('')
+const username = ref('test')
+const password = ref('123456')
 const confirm = ref('')
+const showRefreshTip = ref(false)
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 // 登录函数
 const login = async () => {
@@ -32,15 +37,32 @@ const login = async () => {
       password: password.value,
     })
     if (res.data.success) {
+      // 登录成功后先确认登录态，避免路由守卫因资料未就绪将用户重新打回登录页
+      let profile = null
+      for (let i = 0; i < 3; i++) {
+        profile = await userProfileStore.getProfile(true)
+        if (profile) break
+        await sleep(150)
+      }
+      if (!profile) {
+        notificationStore.addNotification({
+          title: '登录失败',
+          description: '登录状态校验失败，请重试',
+          variant: 'destructive',
+          duration: 4000,
+        })
+        return
+      }
+
       notificationStore.addNotification({
         title: '登录成功',
         description: '您已成功登录。',
         variant: 'default',
         duration: 2000,
       })
-      // 从 URL 查询参数获取 redirect
-      const redirect = route.query.redirect || '/home'
-      router.push(redirect as string)
+      const rawRedirect = route.query.redirect
+      const redirect = Array.isArray(rawRedirect) ? rawRedirect[0] : rawRedirect
+      await router.replace(redirect || '/home')
     } else {
       notificationStore.addNotification({
         title: '登录失败',
@@ -110,8 +132,13 @@ const register = async () => {
 
 // 提交按钮逻辑
 const handleSubmit = () => {
-  if (mode.value === 'login') login()
-  else register()
+  if (mode.value === 'login') {
+    showRefreshTip.value = true
+    login()
+  } else {
+    showRefreshTip.value = false
+    register()
+  }
 }
 </script>
 
@@ -181,10 +208,11 @@ const handleSubmit = () => {
           </div>
         </form>
       </CardContent>
-      <CardFooter class="flex flex-none justify-center">
+      <CardFooter class="flex-col flex-none justify-center gap-4">
         <Button @click="handleSubmit" variant="outline" class="w-2/5 text-1xl">
           {{ mode === 'login' ? '登&nbsp;&nbsp;录' : '注&nbsp;&nbsp;册' }}
         </Button>
+        <div v-if="showRefreshTip && mode === 'login'" class="text-red-500 text-sm">如登录成功但未跳转请刷新页面</div>
       </CardFooter>
     </Card>
   </div>
