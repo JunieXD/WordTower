@@ -3,21 +3,23 @@ from app.models.question import Question
 from app.models.question_word_link import QuestionWordLink
 from app.models.word import Word
 from app.utils.prompt import get_question_prompt
-from app.utils.LLM import generate_question_with_validation, QuestionValidationError
+from app.utils.LLM import generate_question_with_validation
 from app.utils.config import settings, get_question_type_weights
 from sqlmodel import select
 import random
 import json
 import asyncio
 from fastapi.encoders import jsonable_encoder
-from redis.asyncio import Redis, from_url
+from redis.asyncio import Redis
 from app.db.database import engine
 from app.models.user import User
 from app.db.word import random_select_word_by_type
 from app.db.challenge import get_current_floor
 from sqlmodel import Session as DBSession
-from app.models.word import Word
 from app.db.redis import pool
+from app.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 def insert_question_word_link(session: Session, question: Question, word: Word) -> None:
     question_word_link = QuestionWordLink(question_id=question.id, word_id=word.id)
@@ -108,10 +110,10 @@ async def generate_single_question(user_id: int) -> Question | None:
         
         # 3. 在线程池中执行同步的数据库写入操作
         question = await asyncio.to_thread(_save_generated_question, q_type, content, word_ids)
-        
+        logger.info("生成题目成功：用户ID=%s 题目ID=%s 类型=%s", user_id, question.id, q_type)
         return question
     except Exception as e:
-        print(f"Error generating question for user {user_id}: {e}")
+        logger.exception("生成题目失败：用户ID=%s 错误=%s", user_id, str(e))
         return None
 
 async def push_question_to_queue(redis: Redis, user_id: int, question: Question):
@@ -123,8 +125,9 @@ async def push_question_to_queue(redis: Redis, user_id: int, question: Question)
         data = json.dumps(jsonable_encoder(question))
         key = f"{QUEUE_KEY_PREFIX}{user_id}"
         await redis.lpush(key, data)
+        logger.info("题目入队成功：用户ID=%s 题目ID=%s", user_id, question.id)
     except Exception as e:
-        print(e)
+        logger.exception("题目入队失败：用户ID=%s 题目ID=%s 错误=%s", user_id, question.id, str(e))
 
 async def clear_question_queue(redis: Redis, user_id: int):
     """
@@ -133,8 +136,9 @@ async def clear_question_queue(redis: Redis, user_id: int):
     try:
         key = f"{QUEUE_KEY_PREFIX}{user_id}"
         await redis.delete(key)
+        logger.info("清空题目队列成功：用户ID=%s", user_id)
     except Exception as e:
-        print(e)
+        logger.exception("清空题目队列失败：用户ID=%s 错误=%s", user_id, str(e))
 
 async def process_generated_questions(user_id: int, tasks: list[asyncio.Task], exclude_question_id: int | None = None):
     """
@@ -144,7 +148,7 @@ async def process_generated_questions(user_id: int, tasks: list[asyncio.Task], e
     try:
         # 等待所有任务完成
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        
+        queued_count = 0
         for q in results:
             if isinstance(q, Exception) or q is None:
                 continue
@@ -154,8 +158,17 @@ async def process_generated_questions(user_id: int, tasks: list[asyncio.Task], e
                 continue
                 
             await push_question_to_queue(redis, user_id, q)
+            queued_count += 1
+
+        logger.info(
+            "处理生成题目完成：用户ID=%s 总任务=%s 入队数量=%s 排除题目ID=%s",
+            user_id,
+            len(tasks),
+            queued_count,
+            exclude_question_id,
+        )
     except Exception as e:
-        print(e)
+        logger.exception("处理生成题目失败：用户ID=%s 错误=%s", user_id, str(e))
     finally:
         await redis.close()
 
@@ -167,11 +180,14 @@ async def generate_questions_background_task(user_id: int, count: int):
     try:
         tasks = [asyncio.create_task(generate_single_question(user_id)) for _ in range(count)]
         results = await asyncio.gather(*tasks)
-        
+        queued_count = 0
         for q in results:
             if q:
                 await push_question_to_queue(redis, user_id, q)
+                queued_count += 1
+
+        logger.info("后台生成题目完成：用户ID=%s 请求数量=%s 入队数量=%s", user_id, count, queued_count)
     except Exception as e:
-        print(e)
+        logger.exception("后台生成题目失败：用户ID=%s 错误=%s", user_id, str(e))
     finally:
         await redis.close()

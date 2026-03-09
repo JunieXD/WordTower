@@ -1,13 +1,12 @@
-from fastapi import APIRouter
-from app.db.database import SessionDep
-from app.api.api_responses import success_response, payment_required_response
-from app.api.dependencies import get_current_user
-from app.db.upgrade import user_upgrade_hp, user_upgrade_attack, user_upgrade_crit_rate
-from app.models.user import User
-from fastapi import Depends
-from app.db.database import SessionDep
-from app.utils.config import settings
+from fastapi import APIRouter, Depends
 
+from app.api.api_responses import payment_required_response, success_response
+from app.api.dependencies import get_current_user
+from app.db.database import SessionDep
+from app.db.upgrade import user_upgrade_attack, user_upgrade_crit_rate, user_upgrade_hp
+from app.models.user import User
+from app.utils.config import settings
+from app.utils.logger import get_logger
 
 upgrade_hp_coins = settings.UPGRADE_HP_COINS
 upgrade_attack_coins = settings.UPGRADE_ATTACK_COINS
@@ -17,6 +16,8 @@ upgrade_attack_value = settings.UPGRADE_ATTACK_VALUE
 upgrade_crit_rate_value = settings.UPGRADE_CRIT_RATE_VALUE
 
 router = APIRouter(prefix="/api/upgrade", tags=["upgrade"])
+logger = get_logger(__name__)
+
 
 @router.get("/get_values", response_model=dict)
 async def get_values(session: SessionDep, user: User = Depends(get_current_user)):
@@ -26,27 +27,57 @@ async def get_values(session: SessionDep, user: User = Depends(get_current_user)
         "upgrade_crit_rate_coins": upgrade_crit_rate_coins,
         "upgrade_hp_value": upgrade_hp_value,
         "upgrade_attack_value": upgrade_attack_value,
-        "upgrade_crit_rate_value": upgrade_crit_rate_value
+        "upgrade_crit_rate_value": upgrade_crit_rate_value,
     }
+    logger.info("获取升级配置：用户ID=%s", user.id)
     return success_response(data=value)
+
 
 @router.post("/max_hp")
 async def upgrade_hp(session: SessionDep, user: User = Depends(get_current_user)):
     if user.coins < upgrade_hp_coins:
+        logger.warning(
+            "升级血量失败：金币不足，用户ID=%s 当前金币=%s 需要金币=%s",
+            user.id,
+            user.coins,
+            upgrade_hp_coins,
+        )
         return payment_required_response(message="金币不足")
     user_upgrade_hp(session, user.username, upgrade_hp_coins, upgrade_hp_value)
+    logger.info("升级血量成功：用户ID=%s 消耗金币=%s 增加值=%s", user.id, upgrade_hp_coins, upgrade_hp_value)
     return success_response(message="升级成功")
+
 
 @router.post("/attack")
 async def upgrade_attack(session: SessionDep, user: User = Depends(get_current_user)):
     if user.coins < upgrade_attack_coins:
+        logger.warning(
+            "升级攻击失败：金币不足，用户ID=%s 当前金币=%s 需要金币=%s",
+            user.id,
+            user.coins,
+            upgrade_attack_coins,
+        )
         return payment_required_response(message="金币不足")
     user_upgrade_attack(session, user.username, upgrade_attack_coins, upgrade_attack_value)
+    logger.info("升级攻击成功：用户ID=%s 消耗金币=%s 增加值=%s", user.id, upgrade_attack_coins, upgrade_attack_value)
     return success_response(message="升级成功")
+
 
 @router.post("/crit_rate")
 async def upgrade_crit_rate(session: SessionDep, user: User = Depends(get_current_user)):
     if user.coins < upgrade_crit_rate_coins:
+        logger.warning(
+            "升级暴击率失败：金币不足，用户ID=%s 当前金币=%s 需要金币=%s",
+            user.id,
+            user.coins,
+            upgrade_crit_rate_coins,
+        )
         return payment_required_response(message="金币不足")
     user_upgrade_crit_rate(session, user.username, upgrade_crit_rate_coins, upgrade_crit_rate_value)
+    logger.info(
+        "升级暴击率成功：用户ID=%s 消耗金币=%s 增加值=%s",
+        user.id,
+        upgrade_crit_rate_coins,
+        upgrade_crit_rate_value,
+    )
     return success_response(message="升级成功")

@@ -1,8 +1,19 @@
-from fastapi import FastAPI
+import time
+from fastapi import FastAPI, Request
 from app.api.routes import auth
 from app.api.routes import library, word, upgrade, question, combat
 from fastapi.middleware.cors import CORSMiddleware
 from app.utils.cors import origins
+from app.utils.security import decode_token
+from app.utils.logger import (
+    clear_request_context,
+    get_logger,
+    set_request_context,
+    setup_logging,
+)
+
+setup_logging()
+logger = get_logger(__name__)
 
 app = FastAPI()
 
@@ -13,6 +24,58 @@ app.add_middleware(
     allow_methods=["*"],               # 允许所有 HTTP 方法 (GET, POST, PUT, DELETE, etc.)
     allow_headers=["*"],               # 允许所有请求头部
 )
+
+
+@app.middleware("http")
+async def request_logging_middleware(request: Request, call_next):
+    user_label = "未登录"
+    token = request.cookies.get("token")
+    if token:
+        payload = decode_token(token)
+        if payload and payload.get("sub"):
+            user_label = payload.get("sub")
+
+    context_token = set_request_context(user_label)
+    client_ip = request.client.host if request.client else "-"
+    start = time.perf_counter()
+
+    try:
+        response = await call_next(request)
+    except Exception:
+        duration_ms = (time.perf_counter() - start) * 1000
+        logger.exception(
+            "HTTP请求异常 方法=%s 路径=%s 状态码=%s 客户端IP=%s 耗时=%.2fms",
+            request.method,
+            request.url.path,
+            500,
+            client_ip,
+            duration_ms,
+        )
+        raise
+    else:
+        duration_ms = (time.perf_counter() - start) * 1000
+        logger.info(
+            "HTTP请求 方法=%s 路径=%s 状态码=%s 客户端IP=%s 耗时=%.2fms",
+            request.method,
+            request.url.path,
+            response.status_code,
+            client_ip,
+            duration_ms,
+        )
+        return response
+    finally:
+        clear_request_context(context_token)
+
+
+@app.on_event("startup")
+async def on_startup():
+    logger.info("服务启动：WordTower 后端已启动")
+
+
+@app.on_event("shutdown")
+async def on_shutdown():
+    logger.info("服务停止：WordTower 后端已停止")
+
 
 app.include_router(auth.router)
 app.include_router(library.router)

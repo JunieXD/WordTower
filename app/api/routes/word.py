@@ -2,17 +2,21 @@ from fastapi import APIRouter, Depends, Query
 from app.api.dependencies import get_current_user
 from app.db.database import SessionDep
 from app.models.user import User
-from app.api.api_responses import success_response, not_found_response, forbidden_response
-from typing import Union
-from app.db.word import search_word_top_10, batch_recognize_
+from app.api.api_responses import success_response
+from app.db.word import batch_recognize_, search_word_top_10
 from fastapi.encoders import jsonable_encoder
 from app.models.word import BatchRecognizeRequest
+from app.utils.logger import get_logger
 
 router = APIRouter(prefix="/api/word", tags=["word"])
+logger = get_logger(__name__)
+
 
 @router.get("/search")
-async def search(session: SessionDep, q: Union[str, None] = Query(default=None), user_in: User = Depends(get_current_user)):
+async def search(session: SessionDep, q: str | None = Query(default=None), user_in: User = Depends(get_current_user)):
+    logger.info("单词搜索：用户ID=%s 查询=%s", user_in.id, q)
     return success_response(data=jsonable_encoder(search_word_top_10(session, q)))
+
 
 @router.post("/batch_recognize")
 async def batch_recognize(session: SessionDep, words: BatchRecognizeRequest, user_in: User = Depends(get_current_user)):
@@ -23,4 +27,11 @@ async def batch_recognize(session: SessionDep, words: BatchRecognizeRequest, use
         "recognizedWords": [jsonable_encoder(w) for w in recognized],
         "unrecognizedWords": [word for word in words.words if word not in [w.text for w in recognized]],
     }
+    logger.info(
+        "批量识别单词：用户ID=%s 总数=%s 已识别=%s 未识别=%s",
+        user_in.id,
+        len(words.words),
+        len(recognized),
+        len(words.words) - len(recognized),
+    )
     return success_response(data=jsonable_encoder(res))

@@ -3,8 +3,10 @@ from openai import AsyncOpenAI
 import json
 import re
 from typing import Dict, Any, Optional, List, Tuple
+from app.utils.logger import get_logger
 
 client = AsyncOpenAI(api_key=settings.ARK_API_KEY, base_url=settings.ARK_API_BASE_URL)
+logger = get_logger(__name__)
 
 # 最大重试次数
 MAX_RETRY_COUNT = 3
@@ -278,8 +280,8 @@ def _parse_json_response(content: str) -> Dict[str, Any]:
     try:
         return json.loads(content)
     except json.JSONDecodeError as e:
-        print(f"JSON 解析错误: {e}")
-        print(f"清理后的内容: {content}")
+        logger.error("解析 LLM 返回 JSON 失败：错误=%s", str(e))
+        logger.error("解析 LLM 返回 JSON 失败：清理后内容=%s", content)
         raise ValueError(f"LLM 返回的内容不是有效的 JSON 格式: {e}")
 
 
@@ -335,17 +337,29 @@ async def generate_question_with_validation(
             
             if is_valid:
                 if attempt > 0:
-                    print(f"题目在第 {attempt + 1} 次尝试后验证通过")
+                    logger.info("题目校验重试成功：尝试次数=%s 最大重试=%s 题型=%s", attempt + 1, max_retries, question_type)
                 return content
             
             # 验证失败，记录错误并重试
             last_errors = errors
-            print(f"题目验证失败 (尝试 {attempt + 1}/{max_retries}): {errors}")
+            logger.warning(
+                "题目校验失败：尝试次数=%s 最大重试=%s 题型=%s 错误=%s",
+                attempt + 1,
+                max_retries,
+                question_type,
+                errors,
+            )
             
         except ValueError as e:
             # JSON 解析失败也计入重试
             last_errors = [str(e)]
-            print(f"JSON 解析失败 (尝试 {attempt + 1}/{max_retries}): {e}")
+            logger.warning(
+                "题目 JSON 解析失败：尝试次数=%s 最大重试=%s 题型=%s 错误=%s",
+                attempt + 1,
+                max_retries,
+                question_type,
+                str(e),
+            )
     
     # 达到最大重试次数
     raise QuestionValidationError(

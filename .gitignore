@@ -14,3 +14,4 @@ wheels/
 .claude
 
 stardict.db
+logs/
