@@ -1,5 +1,8 @@
 import os
 import random
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 def get_question_type_weights(floor: int) -> list[int]:
