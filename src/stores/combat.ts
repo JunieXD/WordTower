@@ -23,6 +23,7 @@ export interface QuestionOptions {
 export interface QuestionContent0 {
   target_word: string
   story: string
+  story_target_forms?: string[]
   options: QuestionOptions
   correct_option: string
   explanation: string

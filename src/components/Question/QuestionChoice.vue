@@ -45,69 +45,30 @@ const targetWord = computed(() => {
   return props.question?.content?.target_word
 })
 
-/**
- * 生成单词的常见变体形式（复数、过去式、现在分词等）
- * 返回包含原词和所有变体的数组
- */
-const generateWordVariants = (word: string): string[] => {
-  word = word.toLowerCase()
-  const variants = new Set<string>([word])
-  const lastChar = word.charAt(word.length - 1)
-  const secondLastChar = word.charAt(word.length - 2)
-  variants.add(word + 's')
-  if (/(?:s|x|z|ch|sh)$/.test(word)) {
-    variants.add(word + 'es')
+const storyTargetForms = computed<string[]>(() => {
+  const forms = props.question?.content?.story_target_forms
+  if (Array.isArray(forms) && forms.length > 0) {
+    return forms.filter((form): form is string => typeof form === 'string' && form.trim().length > 0)
   }
-  if (word.length > 1 && word.endsWith('y') && !'aeiou'.includes(secondLastChar)) {
-    variants.add(word.slice(0, -1) + 'ies')
+  if (targetWord.value) {
+    return [targetWord.value]
   }
-  if (word.endsWith('f')) {
-    variants.add(word.slice(0, -1) + 'ves')
-  }
-  if (word.endsWith('fe')) {
-    variants.add(word.slice(0, -2) + 'ves')
-  }
-  variants.add(word + 'ed')
-  if (word.endsWith('e')) {
-    variants.add(word + 'd')
-  }
-  if (word.length > 1 && word.endsWith('y') && !'aeiou'.includes(secondLastChar)) {
-    variants.add(word.slice(0, -1) + 'ied')
-  }
-  if (word.length >= 2 && !'aeiouwy'.includes(lastChar) && 'aeiou'.includes(secondLastChar)) {
-    variants.add(word + lastChar + 'ed')
-  }
-  variants.add(word + 'ing')
-  if (word.endsWith('e') && !word.endsWith('ee')) {
-    variants.add(word.slice(0, -1) + 'ing')
-  }
-  if (word.length >= 2 && !'aeiouwy'.includes(lastChar) && 'aeiou'.includes(secondLastChar)) {
-    variants.add(word + lastChar + 'ing')
-  }
-  variants.add(word + 'er')
-  variants.add(word + 'est')
-  if (word.endsWith('e')) {
-    variants.add(word + 'r')
-    variants.add(word + 'st')
-  }
-  if (word.length > 1 && word.endsWith('y') && !'aeiou'.includes(secondLastChar)) {
-    variants.add(word.slice(0, -1) + 'ier')
-    variants.add(word.slice(0, -1) + 'iest')
-  }
-  variants.add(word + 'ly')
-  if (word.length > 1 && word.endsWith('y') && !'aeiou'.includes(secondLastChar)) {
-    variants.add(word.slice(0, -1) + 'ily')
-  }
-  return Array.from(variants)
+  return []
+})
+
+const escapeRegExp = (value: string) => {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 const highlightedStory = computed(() => {
-  if (!story.value || !targetWord.value) return story.value || ''
+  if (!story.value) return story.value || ''
 
-  const variants = generateWordVariants(targetWord.value)
-  variants.sort((a, b) => b.length - a.length)
-  const escapedVariants = variants.map((v) => v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-  const regex = new RegExp(`\\b(${escapedVariants.join('|')})\\b`, 'gi')
+  const forms = [...storyTargetForms.value]
+  if (forms.length === 0) return story.value
+
+  forms.sort((a, b) => b.length - a.length)
+  const escapedForms = forms.map((form) => escapeRegExp(form))
+  const regex = new RegExp(`\\b(${escapedForms.join('|')})\\b`, 'gi')
   return story.value.replace(regex, '<strong class="underline">$1</strong>')
 })
 

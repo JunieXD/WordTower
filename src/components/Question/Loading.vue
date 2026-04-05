@@ -26,7 +26,14 @@
 </template>
 
 <script setup lang="ts">
+import type { Question } from '@/stores/combat'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+
+defineProps<{
+  question: Question | null
+}>()
+
+defineEmits(['isCorrect', 'continue'])
 </script>

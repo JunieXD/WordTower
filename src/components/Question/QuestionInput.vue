@@ -40,7 +40,8 @@
       / 100
     </p>
     <p v-if="checkResult.feedback" class="text-md">解析：{{ checkResult.feedback }}</p>
-    <p v-if="displayReferenceAnswer" class="text-md">参考答案：{{ displayReferenceAnswer }}</p>
+    <p v-if="referenceAnswer" class="text-md">参考答案：{{ referenceAnswer }}</p>
+    <p v-if="displayBetterTranslation" class="text-md">建议改写：{{ displayBetterTranslation }}</p>
     <Button class="self-start mt-2" variant="outline" @click="handleContinue">继续</Button>
   </Card>
 </template>
@@ -83,15 +84,17 @@ interface CheckResult {
 
 const checkResult = ref<CheckResult | null>(null)
 
-// 最终展示的参考答案：优先使用后端返回的润色版本，其次使用题目自带参考答案
-const displayReferenceAnswer = computed(() => {
-  if (checkResult.value?.better_translation) {
-    return checkResult.value.better_translation
+// better_translation 是对用户答案的润色建议，不是出题时的标准参考答案。
+const displayBetterTranslation = computed(() => {
+  const betterTranslation = checkResult.value?.better_translation?.trim() ?? ''
+  const originalReference = referenceAnswer.value.trim()
+  if (!betterTranslation) {
+    return ''
   }
-  if (referenceAnswer.value) {
-    return referenceAnswer.value
+  if (betterTranslation === originalReference) {
+    return ''
   }
-  return ''
+  return betterTranslation
 })
 
 const handleContinue = () => {
