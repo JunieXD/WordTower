@@ -4,7 +4,6 @@ import asyncio
 import random
 import re
 from typing import Any, Literal, TypedDict
-from uuid import uuid4
 
 from langgraph.graph import END, START, StateGraph
 from sqlmodel import Session as DBSession
@@ -14,6 +13,15 @@ from app.db.database import engine
 from app.models.word import Word
 from app.utils.LLM import MAX_RETRY_COUNT, generate_text, validate_question
 from app.utils.logger import get_logger
+from app.utils.word_forms import extract_target_surface_forms
+
+from .common import (
+    build_initial_state,
+    normalize_errors as _normalize_errors,
+    preview_text as _preview_text,
+    run_graph_generation,
+    to_optional_bool as _to_optional_bool,
+)
 
 logger = get_logger(__name__)
 
@@ -28,6 +36,7 @@ class ContextGuessGraphState(TypedDict, total=False):
     options: dict[str, str]
     correct_option: str
     explanation: str
+    story_target_forms: list[str]
     review_status: str
     review_errors: list[str]
     retry_count: int
@@ -44,14 +53,6 @@ class ContextGuessGraphState(TypedDict, total=False):
 
 
 ReviewStatus = Literal["pass", "fail_story", "fail_options", "fail_both", "max_retries"]
-
-
-def _preview_text(text: str, limit: int = 120) -> str:
-    """截断长文本用于 debug 日志，避免终端刷屏。"""
-    normalized = " ".join(text.split())
-    if len(normalized) <= limit:
-        return normalized
-    return f"{normalized[:limit]}..."
 
 
 def _is_option_explanatory_text(option_value: str) -> bool:
@@ -347,28 +348,6 @@ def _merge_options(correct_meaning: str, distractors: list[str]) -> tuple[dict[s
         errors.append("合并后选项存在重复义项")
         return {}, "", errors
     return options, correct_slot, []
-
-
-def _normalize_errors(value: Any) -> list[str]:
-    """将错误信息统一规范为 list[str]，便于后续合并与日志输出。"""
-    if isinstance(value, list):
-        return [str(item).strip() for item in value if str(item).strip()]
-    if isinstance(value, str) and value.strip():
-        return [value.strip()]
-    return []
-
-
-def _to_optional_bool(value: Any) -> bool | None:
-    """将模型返回值尽量解析为布尔值，无法识别时返回 None。"""
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str):
-        lowered = value.strip().lower()
-        if lowered in {"true", "1", "yes"}:
-            return True
-        if lowered in {"false", "0", "no"}:
-            return False
-    return None
 
 
 def _classify_review_failure(
@@ -755,9 +734,13 @@ async def _formatter_agent(state: ContextGuessGraphState) -> ContextGuessGraphSt
         "开始格式化题目：用户ID=%s",
         state["user_id"],
     )
+    story = str(state.get("story", ""))
+    target_word = state["target_word"]
+    story_target_forms = extract_target_surface_forms(story, target_word)
     final_content = {
-        "target_word": state["target_word"],
-        "story": state.get("story", ""),
+        "target_word": target_word,
+        "story": story,
+        "story_target_forms": story_target_forms,
         "options": state.get("options", {}),
         "correct_option": state.get("correct_option", ""),
         "explanation": state.get("explanation", ""),
@@ -767,7 +750,10 @@ async def _formatter_agent(state: ContextGuessGraphState) -> ContextGuessGraphSt
         "格式化题目完成：用户ID=%s",
         state["user_id"],
     )
-    return {"final_content": final_content}
+    return {
+        "story_target_forms": story_target_forms,
+        "final_content": final_content,
+    }
 
 
 def _mark_failed(_: ContextGuessGraphState) -> ContextGuessGraphState:
@@ -837,49 +823,15 @@ async def generate_context_guess_content(
     max_retries: int = MAX_RETRY_COUNT,
 ) -> dict[str, Any] | None:
     """图执行入口：初始化状态并运行图，成功返回 final_content，失败返回 None。"""
-    run_id = uuid4().hex[:12]
-    initial_state: ContextGuessGraphState = {
-        "run_id": run_id,
-        "user_id": user_id,
-        "target_word": target_word,
-        "retry_count": 0,
-        "max_retries": max_retries,
-    }
-
-    logger.info(
-        "开始生成题目：用户ID=%s 题型=%s 目标词=%s 最大重试=%s",
-        user_id,
-        QUESTION_TYPE,
-        target_word,
-        max_retries,
+    initial_state: ContextGuessGraphState = build_initial_state(
+        user_id=user_id,
+        max_retries=max_retries,
+        extra_state={"target_word": target_word},
     )
-    logger.debug("题目图初始状态：%s", initial_state)
-    try:
-        result = await context_guess_graph.ainvoke(initial_state)
-    except Exception as e:
-        logger.exception(
-            "题目图执行异常：用户ID=%s 题型=%s 错误=%s",
-            user_id,
-            QUESTION_TYPE,
-            str(e),
-        )
-        return None
-    logger.debug("题目图结束状态：result_keys=%s", list(result.keys()))
-    final_content = result.get("final_content")
-
-    if isinstance(final_content, dict):
-        logger.info(
-            "题目生成成功：用户ID=%s 题型=%s",
-            user_id,
-            QUESTION_TYPE,
-        )
-        return final_content
-
-    logger.warning(
-        "题目生成失败：用户ID=%s 题型=%s 最终状态=%s 错误=%s",
-        user_id,
-        QUESTION_TYPE,
-        result.get("review_status", "unknown"),
-        result.get("review_errors", []),
+    return await run_graph_generation(
+        graph=context_guess_graph,
+        logger=logger,
+        question_type=QUESTION_TYPE,
+        user_id=user_id,
+        initial_state=initial_state,
     )
-    return None

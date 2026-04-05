@@ -2,14 +2,18 @@ from app.utils.config import settings
 from openai import AsyncOpenAI
 import json
 import re
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Dict, Any, List, Tuple
 from app.utils.logger import get_logger
+from app.utils.word_forms import text_contains_target_form
 
 client = AsyncOpenAI(api_key=settings.ARK_API_KEY, base_url=settings.ARK_API_BASE_URL)
 logger = get_logger(__name__)
 
 # 最大重试次数
 MAX_RETRY_COUNT = 3
+MAX_JSON_PARSE_RETRY_COUNT = 2
+CHINESE_CHAR_RE = re.compile(r"[\u4e00-\u9fff]")
+LATIN_CHAR_RE = re.compile(r"[A-Za-z]")
 
 
 def _preview_text(text: str, limit: int = 160) -> str:
@@ -39,81 +43,344 @@ def _try_parse_first_json_object(content: str) -> Dict[str, Any]:
     return obj
 
 
-class QuestionValidationError(Exception):
-    """题目验证失败时抛出的异常"""
-    def __init__(self, message: str, errors: List[str]):
-        self.message = message
-        self.errors = errors
-        super().__init__(self.message)
+def _normalize_smart_quotes(content: str) -> str:
+    """将常见的智能引号转换为标准引号，便于后续 JSON 修复。"""
+    replacements = {
+        "\u201c": '"',
+        "\u201d": '"',
+        "\u201e": '"',
+        "\u201f": '"',
+        "\u00ab": '"',
+        "\u00bb": '"',
+        "\u2018": "'",
+        "\u2019": "'",
+        "\u201a": "'",
+        "\u201b": "'",
+    }
+    normalized = content
+    for source, target in replacements.items():
+        normalized = normalized.replace(source, target)
+    return normalized
 
 
-def generate_word_variants(word: str) -> List[str]:
+def _strip_json_comments(content: str) -> str:
+    """移除 JSON 中夹带的 // 和 /* */ 注释，避免干扰解析。"""
+    result: list[str] = []
+    in_string = False
+    escape = False
+    index = 0
+    length = len(content)
+
+    while index < length:
+        char = content[index]
+        next_char = content[index + 1] if index + 1 < length else ""
+
+        if in_string:
+            result.append(char)
+            if escape:
+                escape = False
+            elif char == "\\":
+                escape = True
+            elif char == '"':
+                in_string = False
+            index += 1
+            continue
+
+        if char == '"':
+            in_string = True
+            result.append(char)
+            index += 1
+            continue
+
+        if char == "/" and next_char == "/":
+            index += 2
+            while index < length and content[index] not in "\r\n":
+                index += 1
+            continue
+
+        if char == "/" and next_char == "*":
+            index += 2
+            while index + 1 < length and not (content[index] == "*" and content[index + 1] == "/"):
+                index += 1
+            index += 2
+            continue
+
+        result.append(char)
+        index += 1
+
+    return "".join(result)
+
+
+def _escape_control_chars_in_strings(content: str) -> str:
+    """修复字符串值里的原始换行、回车和制表符。"""
+    result: list[str] = []
+    in_string = False
+    escape = False
+
+    for char in content:
+        if in_string:
+            if escape:
+                result.append(char)
+                escape = False
+                continue
+
+            if char == "\\":
+                result.append(char)
+                escape = True
+                continue
+
+            if char == '"':
+                result.append(char)
+                in_string = False
+                continue
+
+            if char == "\n":
+                result.append("\\n")
+                continue
+            if char == "\r":
+                result.append("\\r")
+                continue
+            if char == "\t":
+                result.append("\\t")
+                continue
+
+            result.append(char)
+            continue
+
+        result.append(char)
+        if char == '"':
+            in_string = True
+
+    return "".join(result)
+
+
+def _repair_unescaped_quotes_in_json(content: str) -> str:
     """
-    生成单词的常见变体形式（复数、过去式、现在分词等）
-    返回包含原词和所有变体的列表
+    修复 JSON 字符串值中未转义的双引号。
+
+    常见于模型输出：
+    "feedback": "这里提到 "so far" 不合适"
     """
-    word = word.lower()
-    variants = {word}  # 使用集合避免重复
-    
-    # 1. 复数形式 / 第三人称单数
-    # -s
-    variants.add(word + "s")
-    # -es (以 s, x, z, ch, sh 结尾)
-    if word.endswith(("s", "x", "z", "ch", "sh")):
-        variants.add(word + "es")
-    # -ies (以辅音+y结尾)
-    if len(word) > 1 and word.endswith("y") and word[-2] not in "aeiou":
-        variants.add(word[:-1] + "ies")
-    # -ves (以f或fe结尾)
-    if word.endswith("f"):
-        variants.add(word[:-1] + "ves")
-    if word.endswith("fe"):
-        variants.add(word[:-2] + "ves")
-    
-    # 2. 过去式 / 过去分词
-    # -ed
-    variants.add(word + "ed")
-    # -d (以e结尾)
-    if word.endswith("e"):
-        variants.add(word + "d")
-    # -ied (以辅音+y结尾)
-    if len(word) > 1 and word.endswith("y") and word[-2] not in "aeiou":
-        variants.add(word[:-1] + "ied")
-    # 双写辅音 + ed (以辅音结尾的短词，如 stop -> stopped)
-    if len(word) >= 2 and word[-1] not in "aeiouwy" and word[-2] in "aeiou":
-        variants.add(word + word[-1] + "ed")
-    
-    # 3. 现在分词
-    # -ing
-    variants.add(word + "ing")
-    # 去e加ing (以e结尾)
-    if word.endswith("e") and not word.endswith("ee"):
-        variants.add(word[:-1] + "ing")
-    # 双写辅音 + ing
-    if len(word) >= 2 and word[-1] not in "aeiouwy" and word[-2] in "aeiou":
-        variants.add(word + word[-1] + "ing")
-    
-    # 4. 比较级 / 最高级 (主要针对形容词)
-    # -er, -est
-    variants.add(word + "er")
-    variants.add(word + "est")
-    # 去e加er/est
-    if word.endswith("e"):
-        variants.add(word + "r")
-        variants.add(word + "st")
-    # -ier, -iest (以辅音+y结尾)
-    if len(word) > 1 and word.endswith("y") and word[-2] not in "aeiou":
-        variants.add(word[:-1] + "ier")
-        variants.add(word[:-1] + "iest")
-    
-    # 5. 副词形式
-    # -ly
-    variants.add(word + "ly")
-    # -ily (以辅音+y结尾)
-    if len(word) > 1 and word.endswith("y") and word[-2] not in "aeiou":
-        variants.add(word[:-1] + "ily")
-    
-    return list(variants)
+    repaired: list[str] = []
+    in_string = False
+    escape = False
+    length = len(content)
+    index = 0
+
+    while index < length:
+        char = content[index]
+        if not in_string:
+            repaired.append(char)
+            if char == '"':
+                in_string = True
+            index += 1
+            continue
+
+        if escape:
+            repaired.append(char)
+            escape = False
+            index += 1
+            continue
+
+        if char == "\\":
+            repaired.append(char)
+            escape = True
+            index += 1
+            continue
+
+        if char == '"':
+            lookahead = index + 1
+            while lookahead < length and content[lookahead] in " \t\r\n":
+                lookahead += 1
+            next_char = content[lookahead] if lookahead < length else ""
+
+            # 合法 JSON 中，字符串结束后的下一个有效字符通常是这些分隔符。
+            if next_char in {",", "}", "]", ":"} or next_char == "":
+                repaired.append(char)
+                in_string = False
+            else:
+                repaired.append('\\"')
+            index += 1
+            continue
+
+        repaired.append(char)
+        index += 1
+
+    return "".join(repaired)
+
+
+def _remove_trailing_commas(content: str) -> str:
+    """移除对象或数组结尾前多余的逗号。"""
+    result: list[str] = []
+    in_string = False
+    escape = False
+    index = 0
+    length = len(content)
+
+    while index < length:
+        char = content[index]
+
+        if in_string:
+            result.append(char)
+            if escape:
+                escape = False
+            elif char == "\\":
+                escape = True
+            elif char == '"':
+                in_string = False
+            index += 1
+            continue
+
+        if char == '"':
+            in_string = True
+            result.append(char)
+            index += 1
+            continue
+
+        if char == ",":
+            lookahead = index + 1
+            while lookahead < length and content[lookahead] in " \t\r\n":
+                lookahead += 1
+            if lookahead < length and content[lookahead] in "}]":
+                index += 1
+                continue
+
+        result.append(char)
+        index += 1
+
+    return "".join(result)
+
+
+def _normalize_python_literals(content: str) -> str:
+    """将 True/False/None 等 Python 字面量替换为 JSON 字面量。"""
+    result: list[str] = []
+    in_string = False
+    escape = False
+    index = 0
+    length = len(content)
+
+    while index < length:
+        char = content[index]
+
+        if in_string:
+            result.append(char)
+            if escape:
+                escape = False
+            elif char == "\\":
+                escape = True
+            elif char == '"':
+                in_string = False
+            index += 1
+            continue
+
+        if char == '"':
+            in_string = True
+            result.append(char)
+            index += 1
+            continue
+
+        if content.startswith("True", index):
+            prev_char = content[index - 1] if index > 0 else ""
+            next_char = content[index + 4] if index + 4 < length else ""
+            if not (prev_char.isalnum() or prev_char == "_") and not (next_char.isalnum() or next_char == "_"):
+                result.append("true")
+                index += 4
+                continue
+
+        if content.startswith("False", index):
+            prev_char = content[index - 1] if index > 0 else ""
+            next_char = content[index + 5] if index + 5 < length else ""
+            if not (prev_char.isalnum() or prev_char == "_") and not (next_char.isalnum() or next_char == "_"):
+                result.append("false")
+                index += 5
+                continue
+
+        if content.startswith("None", index):
+            prev_char = content[index - 1] if index > 0 else ""
+            next_char = content[index + 4] if index + 4 < length else ""
+            if not (prev_char.isalnum() or prev_char == "_") and not (next_char.isalnum() or next_char == "_"):
+                result.append("null")
+                index += 4
+                continue
+
+        result.append(char)
+        index += 1
+
+    return "".join(result)
+
+
+def _repair_json_like_content(content: str) -> str:
+    """对常见的类 JSON 输出做防御性修复。"""
+    repaired = _normalize_smart_quotes(content)
+    repaired = _strip_json_comments(repaired)
+    repaired = _escape_control_chars_in_strings(repaired)
+    repaired = _repair_unescaped_quotes_in_json(repaired)
+    repaired = _remove_trailing_commas(repaired)
+    repaired = _normalize_python_literals(repaired)
+    return repaired
+def answer_contains_target_word_variant(target_word: str, user_input: str) -> bool:
+    """检查用户答案中是否包含目标词或其常见词形。"""
+    return text_contains_target_form(user_input, target_word)
+
+
+def _normalize_text_for_comparison(text: str) -> str:
+    """用于比较两段文本是否本质相同。"""
+    lowered = text.strip().lower()
+    return re.sub(r"[\s，。！？；：、“”‘’（）()【】《》…,.!?;:'\"-]+", "", lowered)
+
+
+def precheck_translation_answer(
+    target_word: str,
+    chinese_sentence: str,
+    user_input: str,
+) -> Dict[str, Any] | None:
+    """
+    对翻译题答案做本地硬规则预检。
+
+    明显无效的答案直接判错，避免 LLM 误判。
+    """
+    normalized_input = user_input.strip()
+    if not normalized_input:
+        return {
+            "is_correct": False,
+            "score": 0,
+            "feedback": "你还没有提交英文翻译，请先写出完整的英文句子。",
+            "better_translation": "",
+        }
+
+    if _normalize_text_for_comparison(normalized_input) == _normalize_text_for_comparison(chinese_sentence):
+        return {
+            "is_correct": False,
+            "score": 0,
+            "feedback": "你提交的是原中文句子，没有把题目翻译成英文。请直接写英文译文。",
+            "better_translation": "",
+        }
+
+    if CHINESE_CHAR_RE.search(normalized_input):
+        return {
+            "is_correct": False,
+            "score": 0,
+            "feedback": "你的答案里包含中文。翻译题需要直接提交完整的英文句子，不要夹带中文。",
+            "better_translation": "",
+        }
+
+    if not LATIN_CHAR_RE.search(normalized_input):
+        return {
+            "is_correct": False,
+            "score": 0,
+            "feedback": "你的答案里没有有效的英文内容。请直接写出完整的英文翻译。",
+            "better_translation": "",
+        }
+
+    if not answer_contains_target_word_variant(target_word, normalized_input):
+        return {
+            "is_correct": False,
+            "score": 20,
+            "feedback": f"这是一次尝试，但你没有使用目标单词 {target_word} 或它的正确变形，所以这题不能判对。",
+            "better_translation": "",
+        }
+
+    return None
 
 
 def validate_context_guess(content: Dict[str, Any]) -> Tuple[bool, List[str]]:
@@ -140,17 +407,9 @@ def validate_context_guess(content: Dict[str, Any]) -> Tuple[bool, List[str]]:
     options = content.get("options", {})
     correct_option = content.get("correct_option", "")
     
-    # 1. 检查 story 中是否包含 target_word 或其变体形式
-    word_variants = generate_word_variants(target_word)
-    story_lower = story.lower()
-    found_in_story = False
-    for variant in word_variants:
-        pattern = r'\b' + re.escape(variant) + r'\b'
-        if re.search(pattern, story_lower, re.IGNORECASE):
-            found_in_story = True
-            break
-    if not found_in_story:
-        errors.append(f"story 中未包含目标单词 '{target_word}' 或其变体形式")
+    # 1. 检查 story 中是否包含 target_word 或其词形变化
+    if not text_contains_target_form(story, target_word):
+        errors.append(f"story 中未包含目标单词 '{target_word}' 或其词形变化")
     
     # 2. 检查 correct_option 是否是 A/B/C/D
     valid_options = ["A", "B", "C", "D"]
@@ -208,20 +467,11 @@ def validate_cloze_test(content: Dict[str, Any]) -> Tuple[bool, List[str]]:
     if len(shuffled_options) != len(correct_sequence):
         errors.append(f"shuffled_options 长度 ({len(shuffled_options)}) 与 correct_sequence 长度 ({len(correct_sequence)}) 不匹配")
     
-    # 3. 检查 correct_sequence 中的单词是否都在 shuffled_options 中（考虑变体形式）
-    # 为 shuffled_options 中的每个单词生成变体集合
-    shuffled_variants_map = {}
-    for word in shuffled_options:
-        for variant in generate_word_variants(word):
-            shuffled_variants_map[variant] = word  # 变体映射到原词
-    
+    # 3. 检查 correct_sequence 中的单词是否都在 shuffled_options 中
+    shuffled_options_set = {str(word).strip().lower() for word in shuffled_options}
     for word in correct_sequence:
-        word_lower = word.lower()
-        # 检查该单词或其变体是否在 shuffled_options 的变体集合中
-        word_variants = generate_word_variants(word)
-        found = any(v in shuffled_variants_map for v in word_variants)
-        if not found:
-            errors.append(f"correct_sequence 中的单词 '{word}' 不在 shuffled_options 中（也没有匹配的变体形式）")
+        if str(word).strip().lower() not in shuffled_options_set:
+            errors.append(f"correct_sequence 中的单词 '{word}' 不在 shuffled_options 中")
     
     # 4. 检查占位符编号是否正确 (从1开始连续)
     placeholder_nums = sorted([int(p) for p in placeholders])
@@ -252,21 +502,8 @@ def validate_keyword_translation(content: Dict[str, Any]) -> Tuple[bool, List[st
     target_word = content.get("target_word", "")
     reference_answer = content.get("reference_answer", "").lower()
     
-    # 生成目标单词的所有变体形式
-    word_variants = generate_word_variants(target_word)
-    
-    # 检查 reference_answer 中是否包含 target_word 或其变体
-    # 使用单词边界匹配，确保是完整的单词匹配
-    found = False
-    for variant in word_variants:
-        # 使用 \b 单词边界确保匹配完整单词
-        pattern = r'\b' + re.escape(variant) + r'\b'
-        if re.search(pattern, reference_answer, re.IGNORECASE):
-            found = True
-            break
-    
-    if not found:
-        errors.append(f"reference_answer 中未包含目标单词 '{target_word}' 或其变体形式")
+    if not text_contains_target_form(reference_answer, target_word):
+        errors.append(f"reference_answer 中未包含目标单词 '{target_word}' 或其词形变化")
     
     return len(errors) == 0, errors
 
@@ -325,6 +562,16 @@ def _parse_json_response(content: str) -> Dict[str, Any]:
             except (json.JSONDecodeError, ValueError):
                 pass
 
+        repaired_content = _repair_json_like_content(content)
+        if repaired_content != content:
+            try:
+                parsed = _try_parse_first_json_object(repaired_content)
+                logger.warning("LLM 返回存在非严格 JSON 内容，已自动修复后解析")
+                logger.debug("LLM JSON 修复后解析成功：顶层键=%s", list(parsed.keys()))
+                return parsed
+            except (json.JSONDecodeError, ValueError):
+                pass
+
         logger.error("解析 LLM 返回 JSON 失败：错误=%s", str(e))
         logger.error("解析 LLM 返回 JSON 失败：清理后内容=%s", content)
         raise ValueError(f"LLM 返回的内容不是有效的 JSON 格式: {e}")
@@ -332,23 +579,62 @@ def _parse_json_response(content: str) -> Dict[str, Any]:
 
 async def _call_llm(prompt: str) -> Dict[str, Any]:
     """调用 LLM 并返回解析后的 JSON"""
-    logger.debug(
-        "LLM 调用开始：model=%s prompt长度=%s prompt预览=%s",
-        settings.ARK_API_MODEL_ID,
-        len(prompt),
-        _preview_text(prompt),
+    system_prompt = (
+        "You are a strict JSON API. Output ONLY valid JSON. "
+        "Do not output markdown blocks (```json), conversational text, comments, or internal thinking. "
+        "Start with `{` and end with `}`. "
+        "Use standard JSON syntax only: double-quoted keys, double-quoted string values, lowercase true/false/null, no trailing commas. "
+        "If a string value needs quotation marks, escape them as \\\" or prefer single quotes / Chinese quotes. "
+        "Do not include raw newlines or tabs inside JSON string values; escape them."
     )
-    response = await client.chat.completions.create(
-        model=settings.ARK_API_MODEL_ID,
-        messages=[
-            {"role": "system", "content": "You are a strict JSON API. Output ONLY valid JSON. Do not output markdown blocks (```json), conversational text, or internal thinking. Start with `{` and end with `}`."},
-            {"role": "user", "content": prompt}
-        ],
-        extra_body={"thinking": {"type": "disabled"}, "temperature": 0.7}
-    )
-    content = response.choices[0].message.content
-    logger.debug("LLM 返回内容预览：%s", _preview_text(content or ""))
-    return _parse_json_response(content)
+
+    last_error: ValueError | None = None
+    for attempt in range(MAX_JSON_PARSE_RETRY_COUNT):
+        logger.debug(
+            "LLM 调用开始：model=%s attempt=%s/%s prompt长度=%s prompt预览=%s",
+            settings.ARK_API_MODEL_ID,
+            attempt + 1,
+            MAX_JSON_PARSE_RETRY_COUNT,
+            len(prompt),
+            _preview_text(prompt),
+        )
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt},
+        ]
+        if attempt > 0:
+            messages.append(
+                {
+                    "role": "user",
+                    "content": (
+                        "Your previous response was not valid JSON after parsing. "
+                        "Return the same content again as a single valid JSON object only, "
+                        "using strict JSON syntax with no comments, no trailing commas, and properly escaped quotes."
+                    ),
+                }
+            )
+
+        response = await client.chat.completions.create(
+            model=settings.ARK_API_MODEL_ID,
+            messages=messages,
+            extra_body={"thinking": {"type": "disabled"}, "temperature": 0.7},
+        )
+        content = response.choices[0].message.content
+        logger.debug("LLM 返回内容预览：%s", _preview_text(content or ""))
+        try:
+            return _parse_json_response(content)
+        except ValueError as e:
+            last_error = e
+            logger.warning(
+                "LLM JSON 解析失败，准备重试：attempt=%s/%s 错误=%s",
+                attempt + 1,
+                MAX_JSON_PARSE_RETRY_COUNT,
+                str(e),
+            )
+
+    if last_error is None:
+        raise ValueError("LLM 返回内容为空，无法解析为 JSON")
+    raise last_error
 
 
 async def generate_text(prompt: str) -> Dict[str, Any]:
@@ -356,75 +642,3 @@ async def generate_text(prompt: str) -> Dict[str, Any]:
     生成文本（不带验证的原始版本，保持向后兼容）
     """
     return await _call_llm(prompt)
-
-
-async def generate_question_with_validation(
-    prompt: str, 
-    question_type: str,
-    max_retries: int = MAX_RETRY_COUNT
-) -> Dict[str, Any]:
-    """
-    生成题目并进行验证，验证失败时自动重试
-    
-    Args:
-        prompt: 生成题目的 prompt
-        question_type: 题目类型
-        max_retries: 最大重试次数
-    
-    Returns:
-        验证通过的题目内容
-    
-    Raises:
-        QuestionValidationError: 达到最大重试次数仍验证失败
-        ValueError: JSON 解析错误
-    """
-    last_errors = []
-    logger.debug("题目生成校验开始：题型=%s 最大重试=%s", question_type, max_retries)
-    
-    for attempt in range(max_retries):
-        try:
-            logger.debug("题目生成校验尝试：题型=%s attempt=%s/%s", question_type, attempt + 1, max_retries)
-            content = await _call_llm(prompt)
-            
-            # 验证题目内容
-            is_valid, errors = validate_question(question_type, content)
-            logger.debug(
-                "题目生成校验结果：题型=%s attempt=%s/%s is_valid=%s errors=%s",
-                question_type,
-                attempt + 1,
-                max_retries,
-                is_valid,
-                errors,
-            )
-            
-            if is_valid:
-                if attempt > 0:
-                    logger.info("题目校验重试成功：尝试次数=%s 最大重试=%s 题型=%s", attempt + 1, max_retries, question_type)
-                return content
-            
-            # 验证失败，记录错误并重试
-            last_errors = errors
-            logger.warning(
-                "题目校验失败：尝试次数=%s 最大重试=%s 题型=%s 错误=%s",
-                attempt + 1,
-                max_retries,
-                question_type,
-                errors,
-            )
-            
-        except ValueError as e:
-            # JSON 解析失败也计入重试
-            last_errors = [str(e)]
-            logger.warning(
-                "题目 JSON 解析失败：尝试次数=%s 最大重试=%s 题型=%s 错误=%s",
-                attempt + 1,
-                max_retries,
-                question_type,
-                str(e),
-            )
-    
-    # 达到最大重试次数
-    raise QuestionValidationError(
-        f"题目验证失败，已达到最大重试次数 ({max_retries})",
-        last_errors
-    )

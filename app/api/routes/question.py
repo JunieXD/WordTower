@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.utils.LLM import generate_text
+from app.utils.LLM import generate_text, precheck_translation_answer
 from app.db.database import SessionDep
 from app.models.question import QuestionCheck
 from app.models.user import User
@@ -119,6 +119,21 @@ async def get_question(
 
 @router.post("/check")
 async def check_answer(question_check_in: QuestionCheck, user_in: User = Depends(get_current_user)):
+    precheck_result = precheck_translation_answer(
+        question_check_in.target_word,
+        question_check_in.chinese_sentence,
+        question_check_in.user_input,
+    )
+    if precheck_result is not None:
+        logger.info(
+            "检查答案命中本地预检：用户ID=%s 目标词=%s is_correct=%s score=%s",
+            user_in.id,
+            question_check_in.target_word,
+            precheck_result["is_correct"],
+            precheck_result["score"],
+        )
+        return success_response(message="检查完成", data=jsonable_encoder(precheck_result))
+
     prompt = get_answer_check_prompt(question_check_in.target_word, question_check_in.chinese_sentence, question_check_in.user_input)
     if prompt is None:
         logger.warning("检查答案失败：提示词不存在，用户ID=%s 目标词=%s", user_in.id, question_check_in.target_word)

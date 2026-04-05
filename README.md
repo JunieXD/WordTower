@@ -67,3 +67,4 @@ uv run uvicorn app.main:app --reload
 - [x] prompt：不同选项出现同样内容；选项里标明了错误选项；abcd均匀出现的伪随机方法
 - [ ] 每日挑战
 - [ ] 调整数值
+- [ ] 给前端返回历史答题记录

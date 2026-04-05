@@ -9,6 +9,7 @@ dependencies = [
     "email-validator>=2.3.0",
     "fastapi>=0.121.1",
     "langgraph>=1.0.10",
+    "lemminflect>=0.2.3",
     "openai>=2.8.1",
     "passlib[argon2]>=1.7.4",
     "psycopg2-binary>=2.9.11",

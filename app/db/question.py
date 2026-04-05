@@ -21,22 +21,11 @@ from app.models.question_word_link import QuestionWordLink
 from app.models.user import User
 from app.models.user_question_record import UserQuestionRecord
 from app.models.word import Word
-from app.services.question_generation import generate_context_guess_content
-from app.utils.LLM import generate_question_with_validation
+from app.services.question_generation import generate_question_content
 from app.utils.config import get_question_type_weights, settings
 from app.utils.logger import get_logger
-from app.utils.prompt import get_question_prompt
 
 logger = get_logger(__name__)
-
-
-def _preview(value: Any, limit: int = 120) -> str:
-    """用于 debug 日志的简短预览。"""
-    text = str(value)
-    normalized = " ".join(text.split())
-    if len(normalized) <= limit:
-        return normalized
-    return f"{normalized[:limit]}..."
 
 def insert_question_word_link(session: Session, question: Question, word: Word) -> None:
     question_word_link = QuestionWordLink(question_id=question.id, word_id=word.id)
@@ -207,26 +196,12 @@ def _prepare_generation_data(user_id: int) -> dict[str, Any] | None:
                 "q_type": q_type,
                 "word_ids": word_ids,
                 "word_texts": word_texts,
-                "prompt": None,
             }
-
-        prompt = None
-        if q_type != settings.QUESTION_TYPES[0]:  # 仅非 context_guess 仍走旧 prompt 方式
-            prompt_input = word_texts if word_count > 1 else word_texts[0]
-            prompt = get_question_prompt(q_type, prompt_input)
-            logger.debug(
-                "准备题目数据：用户ID=%s 题型=%s prompt长度=%s prompt预览=%s",
-                user_id,
-                q_type,
-                len(prompt) if prompt else 0,
-                _preview(prompt) if prompt else "-",
-            )
 
         return {
             "q_type": q_type,
             "word_ids": word_ids,
             "word_texts": word_texts,
-            "prompt": prompt,
         }
 
 def _save_generated_question(type: str, content: dict, word_ids: list[int]) -> Question:
@@ -282,7 +257,6 @@ async def generate_single_question(user_id: int) -> Question | None:
             q_type = str(result["q_type"])
             word_ids = list(result["word_ids"])
             word_texts = list(result["word_texts"])
-            prompt = result["prompt"]
             logger.debug(
                 "生成单题参数：用户ID=%s 题型=%s 词ID=%s 词文本=%s",
                 user_id,
@@ -294,24 +268,30 @@ async def generate_single_question(user_id: int) -> Question | None:
             # 2. 根据题型调用不同生成引擎
             content: dict[str, Any] | None = None
             stage = "generate_content"
-            if q_type == settings.QUESTION_TYPES[0]:  # context_guess
-                if not word_texts:
-                    logger.warning("生成题目失败：可用单词不足，用户ID=%s 题型=%s", user_id, q_type)
-                    used_fallback = True
-                    stage = "fallback_word_insufficient"
-                    question = await _get_fallback_question(user_id, q_type)
-                else:
-                    logger.debug("调用 Graph 生成：用户ID=%s 题型=%s 目标词=%s", user_id, q_type, word_texts[0])
-                    content = await generate_context_guess_content(user_id=user_id, target_word=word_texts[0])
+            required_word_count = 4 if q_type == "cloze_test" else 1
+            if len(word_texts) < required_word_count:
+                logger.warning(
+                    "生成题目失败：可用单词不足，用户ID=%s 题型=%s 期望数量=%s 实际数量=%s",
+                    user_id,
+                    q_type,
+                    required_word_count,
+                    len(word_texts),
+                )
+                used_fallback = True
+                stage = "fallback_word_insufficient"
+                question = await _get_fallback_question(user_id, q_type)
             else:
-                if not prompt:
-                    logger.warning("生成题目失败：提示词为空，用户ID=%s 题型=%s", user_id, q_type)
-                    used_fallback = True
-                    stage = "fallback_prompt_empty"
-                    question = await _get_fallback_question(user_id, q_type)
-                else:
-                    logger.debug("调用旧生成链路：用户ID=%s 题型=%s prompt长度=%s", user_id, q_type, len(prompt))
-                    content = await generate_question_with_validation(prompt, q_type)
+                logger.debug(
+                    "调用统一 Graph 生成：用户ID=%s 题型=%s 目标词=%s",
+                    user_id,
+                    q_type,
+                    word_texts,
+                )
+                content = await generate_question_content(
+                    user_id=user_id,
+                    q_type=q_type,
+                    word_texts=word_texts,
+                )
 
             if question is None:
                 if not content:
