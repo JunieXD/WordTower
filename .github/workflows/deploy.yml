@@ -22,58 +22,82 @@ jobs:
           script: |
             set -euo pipefail
 
-            # 后端项目目录（宿主机）
             BACKEND_PATH="/opt/1panel/www/sites/wt/WordTower-backend-python"
-            # 1Panel 后端容器名称关键字
             BACKEND_CONTAINER_NAME="wt"
 
-            echo "[deploy] 开始后端部署"
+            echo "[deploy] start backend deploy"
             cd "$BACKEND_PATH"
             git pull origin main
 
-            # 如宿主机有 uv，则同步导出 requirements.txt
+            # Keep requirements.txt updated if uv exists on host.
             if command -v uv >/dev/null 2>&1 && [ -f "pyproject.toml" ]; then
               uv export --format requirements-txt --no-hashes > requirements.txt
             fi
 
             CONTAINER_ID="$(docker ps -q --filter "name=${BACKEND_CONTAINER_NAME}" | head -n 1)"
             if [ -z "$CONTAINER_ID" ]; then
-              echo "[deploy] 未找到运行中的后端容器: ${BACKEND_CONTAINER_NAME}"
+              echo "[deploy] no running backend container found: ${BACKEND_CONTAINER_NAME}"
               exit 1
             fi
 
-            echo "[deploy] 在容器内执行数据库迁移"
-            docker exec "$CONTAINER_ID" sh -lc '
+            MIGRATED=0
+
+            echo "[deploy] try migrate in container"
+            if docker exec "$CONTAINER_ID" sh -lc '
               set -e
 
-              # 兼容不同镜像工作目录，找到包含 alembic.ini 的目录后再执行迁移
-              for dir in \
-                "/opt/1panel/www/sites/wt/WordTower-backend-python/app" \
-                "/app" \
-                "/srv/app" \
-                "/workspace/app"
-              do
-                if [ -f "$dir/alembic.ini" ]; then
-                  cd "$dir"
-                  break
+              ALEMBIC_INI_PATH=""
+              for base in /opt /app /srv /workspace /usr/src /code /; do
+                if [ -d "$base" ]; then
+                  found="$(find "$base" -type f -name "alembic.ini" 2>/dev/null | head -n 1 || true)"
+                  if [ -n "$found" ]; then
+                    ALEMBIC_INI_PATH="$found"
+                    break
+                  fi
                 fi
               done
 
-              if [ ! -f "alembic.ini" ]; then
-                echo "[migrate] 未找到 alembic.ini，迁移中止"
+              if [ -z "$ALEMBIC_INI_PATH" ]; then
+                echo "[migrate] alembic.ini not found in container"
                 exit 1
               fi
+
+              ALEMBIC_DIR="$(dirname "$ALEMBIC_INI_PATH")"
+              cd "$ALEMBIC_DIR"
+              echo "[migrate] using $ALEMBIC_INI_PATH"
 
               if command -v uv >/dev/null 2>&1; then
                 uv run alembic upgrade head
               elif command -v alembic >/dev/null 2>&1; then
                 alembic upgrade head
+              elif command -v python >/dev/null 2>&1; then
+                python -m alembic upgrade head
               else
-                echo "[migrate] 容器内未找到 uv 或 alembic，迁移中止"
+                echo "[migrate] no uv/alembic/python in container"
                 exit 1
               fi
-            '
+            '; then
+              MIGRATED=1
+            else
+              echo "[deploy] container migration failed, fallback to host"
+            fi
 
-            echo "[deploy] 迁移完成，重启后端容器"
+            if [ "$MIGRATED" -ne 1 ]; then
+              if command -v uv >/dev/null 2>&1 && [ -f "$BACKEND_PATH/app/alembic.ini" ]; then
+                (
+                  cd "$BACKEND_PATH/app"
+                  uv run alembic upgrade head
+                )
+                MIGRATED=1
+                echo "[deploy] host migration completed"
+              fi
+            fi
+
+            if [ "$MIGRATED" -ne 1 ]; then
+              echo "[deploy] migration failed in both container and host"
+              exit 1
+            fi
+
+            echo "[deploy] restart backend container"
             docker restart "$CONTAINER_ID"
-            echo "[deploy] 后端部署完成"
+            echo "[deploy] backend deploy completed"
