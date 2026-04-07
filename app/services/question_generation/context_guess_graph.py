@@ -53,6 +53,42 @@ class ContextGuessGraphState(TypedDict, total=False):
 
 
 ReviewStatus = Literal["pass", "fail_story", "fail_options", "fail_both", "max_retries"]
+COMMON_MEANING_SUFFIXES = (
+    "个人",
+    "小时",
+    "分钟",
+    "公里",
+    "年前",
+    "月份",
+    "学期",
+    "年级",
+    "岁",
+    "年",
+    "月",
+    "天",
+    "周",
+    "次",
+    "个",
+    "层",
+    "场",
+    "轮",
+    "级",
+    "张",
+    "只",
+    "本",
+    "条",
+    "段",
+    "位",
+    "名",
+    "件",
+    "种",
+    "双",
+    "杯",
+    "片",
+    "把",
+    "米",
+    "秒",
+)
 
 
 def _is_option_explanatory_text(option_value: str) -> bool:
@@ -102,6 +138,60 @@ def _validate_option_directness(options: dict[str, str]) -> list[str]:
             continue
         if _is_option_explanatory_text(option_value):
             errors.append(f"选项 {key} 过于描述化，需改为直白词典义项：{option_value}")
+    return errors
+
+
+def _normalize_option_meaning_core(option_value: str) -> str:
+    """提取义项核心，拦截仅靠单位/量词变化制造的伪干扰项。"""
+    normalized = re.sub(r"[\s，。！？；：、“”‘’（）()《》〈〉【】\[\]·]", "", option_value.strip())
+    if not normalized:
+        return ""
+
+    changed = True
+    while changed and normalized:
+        changed = False
+        if normalized.startswith("第") and len(normalized) > 1:
+            normalized = normalized[1:]
+            changed = True
+
+        for suffix in COMMON_MEANING_SUFFIXES:
+            if normalized.endswith(suffix) and len(normalized) > len(suffix):
+                normalized = normalized[: -len(suffix)]
+                changed = True
+                break
+
+    return normalized
+
+
+def _is_overly_similar_option_pair(left: str, right: str) -> bool:
+    left_text = left.strip()
+    right_text = right.strip()
+    if not left_text or not right_text:
+        return False
+
+    if left_text == right_text:
+        return True
+
+    left_core = _normalize_option_meaning_core(left_text)
+    right_core = _normalize_option_meaning_core(right_text)
+    return bool(left_core and right_core and left_core == right_core)
+
+
+def _validate_option_distinctness(options: dict[str, str]) -> list[str]:
+    """校验选项之间是否过近，例如只差一个单位、量词或年龄后缀。"""
+    errors: list[str] = []
+    pairs = [("A", "B"), ("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"), ("C", "D")]
+
+    for left_key, right_key in pairs:
+        left_value = str(options.get(left_key, "")).strip()
+        right_value = str(options.get(right_key, "")).strip()
+        if not left_value or not right_value:
+            continue
+        if _is_overly_similar_option_pair(left_value, right_value):
+            errors.append(
+                f"选项 {left_key} 和 {right_key} 语义过近，只是单位/量词等局部变化：{left_value} / {right_value}"
+            )
+
     return errors
 
 
@@ -211,11 +301,13 @@ def _build_correct_meaning_prompt(target_word: str, story: str, dictionary_meani
 {dictionary_hint}
 
 要求：
-1. correct_meaning 必须是“词典义项风格”的直白释义，优先单词或固定短语。
+1. correct_meaning 必须是“词典义项风格”的直白释义，但首先要保证在当前 story 里语义完整且唯一。
 2. correct_meaning 尽量控制在 1-8 个中文字符。
 3. 严禁解释句（如“房子上的排气管状物”“用来……的东西”“一种……”）。
-4. 若本地词典命中，优先从候选义项中选择最贴合语境的一项；若未命中再自行生成。
-5. explanation 使用中文，解释为什么该义项符合语境。
+4. 若 story 明确限定了年龄、年份、次数、时间长度、数量单位、身份称谓等上下文，请输出“语境完整”的义项，而不是过于裸露、会与其他单位义项混淆的片段。
+5. 例如表示年龄时，优先输出“九十岁”而不是“九十”；表示次数时，优先输出“三次”而不是“三”。
+6. 若本地词典命中，优先从候选义项中选择最贴合语境的一项；若未命中再自行生成。
+7. explanation 使用中文，解释为什么该义项符合语境，并说明为什么不是其他相近义项。
 
 输出格式（仅 JSON）：
 {{
@@ -249,6 +341,8 @@ def _build_distractor_prompt(target_word: str, story: str, dictionary_meanings: 
 3. 严禁解释句（如“用来……的东西”“一种……”）。
 4. 若本地词典命中，优先从候选义项中挑选“非核心义项”作为干扰项。
 5. 应尽量覆盖目标词常见混淆义，而不是同义改写。
+6. 干扰项不能只是给正确义项机械地加减单位、量词、时间词或身份后缀。
+7. 例如不要产出“九十 / 九十岁 / 九十年 / 九十次”这种只换后缀的坏选项组。
 
 输出格式（仅 JSON）：
 {{
@@ -273,6 +367,8 @@ def _build_review_prompt(candidate_content: dict[str, Any]) -> str:
 2. 正确选项是否与 story 语义最匹配，且具有唯一性。
 3. 干扰项是否具有迷惑性但整体语义上应判错。
 4. explanation 是否与语境和正确项一致。
+5. 如果几个选项只是通过增减单位、量词、年龄/次数/年份等后缀形成，例如“九十/九十岁/九十年/九十次”，必须判定为不合格。
+6. 如果正确选项过于裸露，无法在当前语境里形成唯一答案，也必须判定为不合格。
 
 输出格式（仅 JSON）：
 {{
@@ -617,6 +713,7 @@ async def _review_agent(state: ContextGuessGraphState) -> ContextGuessGraphState
     options_agent_error = str(state.get("options_agent_error", "")).strip()
     dictionary_lookup_error = str(state.get("dictionary_lookup_error", "")).strip()
     option_directness_errors = _validate_option_directness(candidate_content.get("options", {}))
+    option_distinctness_errors = _validate_option_distinctness(candidate_content.get("options", {}))
 
     deterministic_valid, deterministic_errors = validate_question(QUESTION_TYPE, candidate_content)
     local_errors: list[str] = []
@@ -627,11 +724,17 @@ async def _review_agent(state: ContextGuessGraphState) -> ContextGuessGraphState
         options_agent_error,
         *deterministic_errors,
         *option_directness_errors,
+        *option_distinctness_errors,
     ]:
         if err and err not in local_errors:
             local_errors.append(err)
 
-    local_pass = len(local_errors) == 0 and deterministic_valid and not option_directness_errors
+    local_pass = (
+        len(local_errors) == 0
+        and deterministic_valid
+        and not option_directness_errors
+        and not option_distinctness_errors
+    )
 
     llm_valid = False
     story_ok: bool | None = None
@@ -676,7 +779,7 @@ async def _review_agent(state: ContextGuessGraphState) -> ContextGuessGraphState
         story_ok = False
     if options_ok is None and (correct_meaning_agent_error or distractor_agent_error or options_agent_error):
         options_ok = False
-    if option_directness_errors:
+    if option_directness_errors or option_distinctness_errors:
         options_ok = False
 
     is_valid = local_pass and llm_valid and len(llm_errors) == 0

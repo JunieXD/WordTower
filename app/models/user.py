@@ -20,6 +20,7 @@ class UserBase(SQLModel):
     coins: int = Field(default=0)
     created_at: Optional[datetime] = Field(default_factory=lambda: datetime.now(timezone.utc))
     last_login: Optional[datetime] = Field(default=None)
+    last_active_at: Optional[datetime] = Field(default=None)
     status: UserStatus = Field(default=UserStatus.ACTIVE, sa_column=Column(String))
     max_hp: int = Field(default=100)
     attack: int = Field(default=10)

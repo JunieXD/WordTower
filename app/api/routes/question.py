@@ -28,6 +28,7 @@ from fastapi import BackgroundTasks
 import asyncio
 import json
 from app.utils.logger import get_logger
+from app.utils.question_payload import ensure_story_target_forms_in_payload, serialize_question_for_client
 
 router = APIRouter(prefix="/api/question", tags=["question"])
 logger = get_logger(__name__)
@@ -66,7 +67,7 @@ async def get_question(
             await mark_question_served_payload(redis, user_in.id, question_data)
             background_tasks.add_task(generate_questions_background_task, user_in.id, 1)
             logger.info("获取题目：从队列命中，用户ID=%s", user_in.id)
-            return success_response(data=question_data)
+            return success_response(data=ensure_story_target_forms_in_payload(question_data))
         except json.JSONDecodeError:
             logger.warning("获取题目：队列数据损坏，用户ID=%s", user_in.id)
             pass
@@ -79,7 +80,7 @@ async def get_question(
             user_in.id,
             deferred_duplicate_question_data.get("id"),
         )
-        return success_response(data=deferred_duplicate_question_data)
+        return success_response(data=ensure_story_target_forms_in_payload(deferred_duplicate_question_data))
 
     # 队列为空，启动4个生成任务
     tasks = [asyncio.create_task(generate_single_question(user_in.id)) for _ in range(5)]
@@ -115,7 +116,7 @@ async def get_question(
     await mark_question_served_question(redis, user_in.id, question_to_return)
     logger.info("获取题目：实时生成成功，用户ID=%s 题目ID=%s", user_in.id, question_to_return.id)
         
-    return success_response(data=jsonable_encoder(question_to_return))
+    return success_response(data=serialize_question_for_client(question_to_return))
 
 @router.post("/check")
 async def check_answer(question_check_in: QuestionCheck, user_in: User = Depends(get_current_user)):
@@ -158,7 +159,7 @@ def answer_question(
         logger.warning("记录作答失败：题目不存在，用户ID=%s 题目ID=%s", user_in.id, question_id)
         return not_found_response(message="题目不存在")
     try:
-        user_question_answer(session, user_in, question, answer.is_correct)
+        user_question_answer(session, user_in, question, answer.is_correct, answer.answer_detail)
         # 绑定题目和关卡
         link_level_question(session, answer.level_id, question_id)
         logger.info(

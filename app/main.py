@@ -1,10 +1,11 @@
 import time
 from fastapi import FastAPI, Request
 from app.api.routes import auth
-from app.api.routes import library, word, upgrade, question, combat
+from app.api.routes import library, word, upgrade, question, combat, social, history, daily_challenge
 from fastapi.middleware.cors import CORSMiddleware
 from app.utils.cors import origins
 from app.utils.security import decode_token
+from app.db.social_presence import touch_user_presence
 from app.utils.logger import (
     clear_request_context,
     get_logger,
@@ -30,16 +31,23 @@ app.add_middleware(
 async def request_logging_middleware(request: Request, call_next):
     user_label = "未登录"
     token = request.cookies.get("token")
+    username = None
     if token:
         payload = decode_token(token)
         if payload and payload.get("sub"):
-            user_label = payload.get("sub")
+            username = payload.get("sub")
+            user_label = username
 
     context_token = set_request_context(user_label)
     client_ip = request.client.host if request.client else "-"
     start = time.perf_counter()
 
     try:
+        if username:
+            try:
+                await touch_user_presence(username, request.url.path)
+            except Exception:
+                logger.warning("刷新社交在线态失败：用户名=%s 路径=%s", username, request.url.path)
         response = await call_next(request)
     except Exception:
         duration_ms = (time.perf_counter() - start) * 1000
@@ -83,3 +91,6 @@ app.include_router(upgrade.router)
 app.include_router(word.router)
 app.include_router(question.router)
 app.include_router(combat.router)
+app.include_router(social.router)
+app.include_router(history.router)
+app.include_router(daily_challenge.router)

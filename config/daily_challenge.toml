@@ -1,0 +1,36 @@
+# 每日挑战规则文件
+# 这里放“相对稳定但结构复杂”的挑战规则。
+# 基础连接信息、密钥、少量运行时参数仍然建议放在 .env 中。
+
+[combat]
+# 玩家固定生命上限，不受局外成长影响。
+player_max_hp = 100
+
+# 玩家每答对一题造成的固定伤害。
+player_attack = 10
+
+# 敌人的固定生命值。
+enemy_hp = 30
+
+# 玩家每答错一题时受到的固定伤害。
+enemy_attack = 10
+
+# 每通过多少层触发一次回血。
+heal_every_floors = 5
+
+# 每次回血的生命值，最终仍然会受到生命上限限制。
+heal_amount = 50
+
+[words]
+# 每日挑战允许使用的词源标签池。
+source_tags = ["zk", "gk", "cet4", "cet6", "ky"]
+
+# 每日挑战的词源难度分段。
+# 随着层数升高，抽到更高难度词源的概率会逐步提高。
+tag_weights = [
+  { min_floor = 1, max_floor = 5, weights = { zk = 50, gk = 30, cet4 = 15, cet6 = 5, ky = 0 } },
+  { min_floor = 6, max_floor = 10, weights = { zk = 25, gk = 35, cet4 = 25, cet6 = 10, ky = 5 } },
+  { min_floor = 11, max_floor = 15, weights = { zk = 10, gk = 25, cet4 = 35, cet6 = 20, ky = 10 } },
+  { min_floor = 16, max_floor = 20, weights = { zk = 5, gk = 15, cet4 = 35, cet6 = 25, ky = 20 } },
+  { min_floor = 21, max_floor = 999999, weights = { zk = 0, gk = 10, cet4 = 25, cet6 = 35, ky = 30 } },
+]

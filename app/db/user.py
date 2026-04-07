@@ -1,3 +1,5 @@
+from typing import Any
+
 from sqlmodel import Session, select
 from app.models import User, UserCreate, UserQuestionRecord, Question
 from app.utils.security import hash_password
@@ -24,11 +26,34 @@ def set_user_last_login(session: Session, username: str) -> None:
         user.last_login = datetime.now(timezone.utc)
         session.commit()
 
-def user_question_answer(session: Session, user: User, question: Question, is_correct: bool) -> None:
-    user_question_record = UserQuestionRecord(user_id=user.id, question_id=question.id, correct=is_correct)
+def user_question_answer(
+    session: Session,
+    user: User,
+    question: Question,
+    is_correct: bool,
+    answer_detail: dict[str, Any] | None = None,
+) -> UserQuestionRecord:
+    select_statement = (
+        select(UserQuestionRecord)
+        .where(UserQuestionRecord.user_id == user.id)
+        .where(UserQuestionRecord.question_id == question.id)
+        .order_by(UserQuestionRecord.time, UserQuestionRecord.id)
+    )
+    existing_record = session.exec(select_statement).first()
+    if existing_record is not None:
+        return existing_record
+
+    user_question_record = UserQuestionRecord(
+        user_id=user.id,
+        question_id=question.id,
+        correct=is_correct,
+        answer_detail=answer_detail,
+    )
     session.add(user_question_record)
     session.commit()
-    
+    session.refresh(user_question_record)
+    return user_question_record
+
 def user_question_report(session: Session, user: User, question: Question, report: str) -> None:
     select_statement = select(UserQuestionRecord).where(UserQuestionRecord.user_id == user.id).where(UserQuestionRecord.question_id == question.id).order_by(UserQuestionRecord.time)
     user_question_record = session.exec(select_statement).first()

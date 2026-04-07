@@ -19,6 +19,7 @@ class QuestionCheck(SQLModel):
 class QuestionAnswer(SQLModel):
     is_correct: bool
     level_id: int
+    answer_detail: Optional[Dict[str, Any]] = None
     
 class QuestionReport(SQLModel):
     report: str

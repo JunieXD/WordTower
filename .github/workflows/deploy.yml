@@ -2,42 +2,78 @@ name: Deploy to 1Panel VPS
 
 on:
   push:
-    branches: [ main ]  # 只有推送到 main 分支时才触发
+    branches: [main]
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4 
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Deploy via SSH
-      uses: appleboy/ssh-action@master
-      with:
-        host: ${{ secrets.HOST }}
-        port: ${{ secrets.PORT }}
-        username: ${{ secrets.USERNAME }}
-        password: ${{ secrets.PASSWORD }}
-        script: |
-          # 后端网站目录
-          BACKEND_PATH="/opt/1panel/www/sites/wt/WordTower-backend-python"
-          
-          # 后端容器名称关键字 (去 1Panel 容器列表看)
-          BACKEND_CONTAINER_NAME="wt"
-          
-          echo "🚀 开始部署后端..."
-          cd $BACKEND_PATH
-          git pull origin main
-          
-          # 如果有 uv，更新一下 requirements.txt (给容器用)
-          if [ -f "pyproject.toml" ]; then
-             uv export --format requirements-txt --no-hashes > requirements.txt
-          fi
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          port: ${{ secrets.PORT }}
+          username: ${{ secrets.USERNAME }}
+          password: ${{ secrets.PASSWORD }}
+          script: |
+            set -euo pipefail
 
-          # 重启后端容器
-          echo "🔄 重启后端容器..."
-          # 这里使用 docker ps 动态找到容器 ID 并重启
-          docker restart $(docker ps -q --filter name=$BACKEND_CONTAINER_NAME)
-          
-          echo "✅ 后端部署完成！"
+            # 后端项目目录（宿主机）
+            BACKEND_PATH="/opt/1panel/www/sites/wt/WordTower-backend-python"
+            # 1Panel 后端容器名称关键字
+            BACKEND_CONTAINER_NAME="wt"
+
+            echo "[deploy] 开始后端部署"
+            cd "$BACKEND_PATH"
+            git pull origin main
+
+            # 如宿主机有 uv，则同步导出 requirements.txt
+            if command -v uv >/dev/null 2>&1 && [ -f "pyproject.toml" ]; then
+              uv export --format requirements-txt --no-hashes > requirements.txt
+            fi
+
+            CONTAINER_ID="$(docker ps -q --filter "name=${BACKEND_CONTAINER_NAME}" | head -n 1)"
+            if [ -z "$CONTAINER_ID" ]; then
+              echo "[deploy] 未找到运行中的后端容器: ${BACKEND_CONTAINER_NAME}"
+              exit 1
+            fi
+
+            echo "[deploy] 在容器内执行数据库迁移"
+            docker exec "$CONTAINER_ID" sh -lc '
+              set -e
+
+              # 兼容不同镜像工作目录，找到包含 alembic.ini 的目录后再执行迁移
+              for dir in \
+                "/opt/1panel/www/sites/wt/WordTower-backend-python/app" \
+                "/app" \
+                "/srv/app" \
+                "/workspace/app"
+              do
+                if [ -f "$dir/alembic.ini" ]; then
+                  cd "$dir"
+                  break
+                fi
+              done
+
+              if [ ! -f "alembic.ini" ]; then
+                echo "[migrate] 未找到 alembic.ini，迁移中止"
+                exit 1
+              fi
+
+              if command -v uv >/dev/null 2>&1; then
+                uv run alembic upgrade head
+              elif command -v alembic >/dev/null 2>&1; then
+                alembic upgrade head
+              else
+                echo "[migrate] 容器内未找到 uv 或 alembic，迁移中止"
+                exit 1
+              fi
+            '
+
+            echo "[deploy] 迁移完成，重启后端容器"
+            docker restart "$CONTAINER_ID"
+            echo "[deploy] 后端部署完成"
