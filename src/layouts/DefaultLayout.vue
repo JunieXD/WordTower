@@ -3,6 +3,11 @@ import FooterNav from '@/components/FooterNav.vue'
 import AppSidebar from '@/components/AppSidebar.vue'
 import AppHeader from '@/components/AppHeader.vue'
 import { SidebarProvider } from '@/components/ui/sidebar'
+import { computed } from 'vue'
+import { useRoute } from 'vue-router'
+
+const route = useRoute()
+const showFooterNav = computed(() => route.name !== 'social-chat')
 </script>
 
 <template>
@@ -19,9 +24,9 @@ import { SidebarProvider } from '@/components/ui/sidebar'
     <main class="flex flex-col flex-1 overflow-hidden">
       <!-- 顶部栏：所有页面显示 -->
       <AppHeader />
-      <RouterView class="flex-1 overflow-hidden pb-16 lg:pb-0" />
+      <RouterView :class="['flex-1 overflow-hidden', showFooterNav ? 'pb-16 lg:pb-0' : 'pb-0']" />
       <!-- 底部导航栏：仅手机端显示 -->
-      <FooterNav class="block lg:hidden" />
+      <FooterNav v-if="showFooterNav" class="block lg:hidden" />
     </main>
   </div>
 </template>

@@ -4,10 +4,14 @@ const LoginView = () => import('@/views/LoginView.vue')
 const LibraryView = () => import('@/views/LibraryView.vue')
 const LibraryEditView = () => import('@/views/LibraryEditView.vue')
 const ProfileView = () => import('@/views/ProfileView.vue')
+const HistoryView = () => import('@/views/HistoryView.vue')
+const HistoryDetailView = () => import('@/views/HistoryDetailView.vue')
 const NotFoundView = () => import('@/views/NotFoundView.vue')
 const UpgradeView = () => import('@/views/UpgradeView.vue')
-const LeaderboardView = () => import('@/views/LeaderboardView.vue')
+const SocialView = () => import('@/views/SocialView.vue')
+const SocialChatView = () => import('@/views/SocialChatView.vue')
 const CombatView = () => import('@/views/CombatView.vue')
+const DailyChallengeView = () => import('@/views/DailyChallengeView.vue')
 const CheckoutView = () => import('@/views/CheckoutView.vue')
 const CombatLayout = () => import('@/layouts/CombatLayout.vue')
 const IntroductionView = () => import('@/views/IntroductionView.vue')
@@ -35,8 +39,27 @@ const routes = [
       },
       { path: 'library/edit/:id', name: 'library-edit', component: LibraryEditView },
       { path: 'upgrade', name: 'upgrade', component: UpgradeView },
-      { path: 'leaderboard', name: 'leaderboard', component: LeaderboardView },
+      { path: 'social', name: 'social', component: SocialView },
+      {
+        path: 'social/chat/:friendId',
+        name: 'social-chat',
+        component: SocialChatView,
+        meta: { backTo: { name: 'social' } },
+      },
+      { path: 'leaderboard', redirect: '/social' },
       { path: 'profile', name: 'profile', component: ProfileView },
+      {
+        path: 'history',
+        name: 'history',
+        component: HistoryView,
+        meta: { backTo: { name: 'profile' } },
+      },
+      {
+        path: 'history/:runId',
+        name: 'history-detail',
+        component: HistoryDetailView,
+        meta: { backTo: { name: 'history' } },
+      },
     ],
   },
   {
@@ -45,6 +68,7 @@ const routes = [
     meta: { requiresAuth: true },
     children: [
       { path: '', name: 'combat', component: CombatView },
+      { path: 'daily', name: 'daily-challenge', component: DailyChallengeView },
       { path: 'checkout', name: 'checkout', component: CheckoutView },
     ],
   },

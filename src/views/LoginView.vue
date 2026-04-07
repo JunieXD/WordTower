@@ -26,6 +26,7 @@ const username = ref('test')
 const password = ref('123456')
 const confirm = ref('')
 const showRefreshTip = ref(false)
+const isSubmitting = ref(false)
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -131,13 +132,20 @@ const register = async () => {
 }
 
 // 提交按钮逻辑
-const handleSubmit = () => {
-  if (mode.value === 'login') {
-    showRefreshTip.value = true
-    login()
-  } else {
-    showRefreshTip.value = false
-    register()
+const handleSubmit = async () => {
+  if (isSubmitting.value) return
+
+  isSubmitting.value = true
+  try {
+    if (mode.value === 'login') {
+      showRefreshTip.value = true
+      await login()
+    } else {
+      showRefreshTip.value = false
+      await register()
+    }
+  } finally {
+    isSubmitting.value = false
   }
 }
 </script>
@@ -160,6 +168,7 @@ const handleSubmit = () => {
           <Button
             :variant="mode === 'login' ? 'default' : 'outline'"
             class="text-1xl mx-4 cursor-pointer"
+            :disabled="isSubmitting"
             @click="mode = 'login'"
           >
             登 录
@@ -167,6 +176,7 @@ const handleSubmit = () => {
           <Button
             :variant="mode === 'register' ? 'default' : 'outline'"
             class="text-1xl mx-4 cursor-pointer"
+            :disabled="isSubmitting"
             @click="mode = 'register'"
           >
             注 册
@@ -181,12 +191,13 @@ const handleSubmit = () => {
         <form>
           <div class="flex flex-col gap-y-4">
             <Label for="username">用户名</Label>
-            <Input v-model="username" placeholder="username" />
+            <Input v-model="username" placeholder="username" :disabled="isSubmitting" />
             <Label for="password">密码</Label>
             <Input
               v-model="password"
               placeholder="password"
               type="password"
+              :disabled="isSubmitting"
               @keyup.enter.prevent="handleSubmit"
             />
             <p v-if="password.length > 0 && password.length < 6" class="text-sm text-red-500">
@@ -199,6 +210,7 @@ const handleSubmit = () => {
                 v-model="confirm"
                 placeholder="confirm password"
                 type="password"
+                :disabled="isSubmitting"
                 @keyup.enter.prevent="handleSubmit"
               />
               <p v-if="confirm.length > 0 && confirm !== password" class="text-sm text-red-500">
@@ -209,7 +221,12 @@ const handleSubmit = () => {
         </form>
       </CardContent>
       <CardFooter class="flex-col flex-none justify-center gap-4">
-        <Button @click="handleSubmit" variant="outline" class="w-2/5 text-1xl">
+        <Button
+          @click="handleSubmit"
+          variant="outline"
+          class="w-2/5 text-1xl"
+          :loading="isSubmitting"
+        >
           {{ mode === 'login' ? '登&nbsp;&nbsp;录' : '注&nbsp;&nbsp;册' }}
         </Button>
         <div v-if="showRefreshTip && mode === 'login'" class="text-red-500 text-sm">如登录成功但未跳转请刷新页面</div>

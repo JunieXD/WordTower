@@ -50,6 +50,10 @@ export interface Question {
   content: QuestionContent0 | QuestionContent1 | QuestionContent2
 }
 
+export interface AnswerDetail {
+  [key: string]: unknown
+}
+
 // 关键词翻译 / 句子批改结果
 export interface QuestionCheckResult {
   is_correct: boolean
@@ -90,10 +94,11 @@ export const useCombatStore = defineStore('combat', () => {
     return res.data.data as QuestionCheckResult
   }
 
-  async function answerQuestion(questionId: number, isCorrect: boolean) {
+  async function answerQuestion(questionId: number, isCorrect: boolean, answerDetail?: AnswerDetail) {
     await request.post(`/api/question/answer/${questionId}`, {
       level_id: combatInfo.value?.level_id,
       is_correct: isCorrect,
+      answer_detail: answerDetail ?? null,
     })
   }
 

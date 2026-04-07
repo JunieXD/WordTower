@@ -59,7 +59,14 @@ const logout = async () => {
   }
 }
 
-const items = [{ name: '退出登录', icon: 'mdi:logout', func: logout }]
+const goToHistory = () => {
+  router.push({ name: 'history' })
+}
+
+const items = [
+  { name: '历史记录', icon: 'mdi:history', func: goToHistory },
+  { name: '退出登录', icon: 'mdi:logout', func: logout },
+]
 
 onMounted(async () => {
   // 从 store 获取用户资料（会先显示缓存，然后从后端更新）
