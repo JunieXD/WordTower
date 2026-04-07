@@ -87,6 +87,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useDailyChallengeStore } from '@/stores/dailyChallenge'
 import { useUserProfileStore } from '@/stores/userProfile'
+import { preloadHomeCriticalAssets } from '@/utils/assetPreloader'
 
 const userProfileStore = useUserProfileStore()
 const dailyChallengeStore = useDailyChallengeStore()
@@ -113,6 +114,7 @@ const dailyActionText = computed(() => {
 })
 
 onMounted(() => {
+  preloadHomeCriticalAssets()
   userProfileStore.getProfile()
   void dailyChallengeStore.fetchOverview()
 })

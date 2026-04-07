@@ -7,7 +7,7 @@
     :show-question="showQuestionPanel"
     :evaluation-mode="'server'"
     :answer-result="answerResultForRender"
-    :is-submitting="isSubmittingAnswer"
+    :is-submitting="isQuestionSubmitting"
     @submit="handleSubmit"
     @continue="handleContinue"
   >
@@ -104,6 +104,7 @@ const isBootstrapping = ref(true)
 const loadErrorMessage = ref('')
 const isAnimatingTransition = ref(false)
 const optimisticAnswerResult = ref<Record<string, unknown> | null>(null)
+const pendingContinueRequested = ref(false)
 
 const displayPlayerHp = ref(100)
 const displayEnemyHp = ref(30)
@@ -114,6 +115,9 @@ const healAmount = computed(() => activeState.value?.heal_amount ?? 50)
 const questionForRender = computed(() => displayedQuestion.value ?? undefined)
 const answerResultForRender = computed(
   () => answerResult.value ?? optimisticAnswerResult.value ?? undefined,
+)
+const isQuestionSubmitting = computed(
+  () => isSubmittingAnswer.value && !Boolean(answerResultForRender.value),
 )
 const showQuestionPanel = computed(() => {
   if (isBootstrapping.value || isLoadingOverview.value || isStartingChallenge.value) return false
@@ -152,6 +156,22 @@ const questionIdentity = computed(
 function syncDisplayedHealth() {
   displayPlayerHp.value = Math.max(0, activeState.value?.current_hp ?? 0)
   displayEnemyHp.value = Math.max(0, activeState.value?.current_enemy_hp ?? 0)
+}
+
+async function continueToPendingState() {
+  optimisticAnswerResult.value = null
+  pendingContinueRequested.value = false
+
+  const previousFloor = displayedQuestion.value?.floor
+  dailyChallengeStore.continueAfterAnswer()
+  await nextTick()
+  syncDisplayedHealth()
+
+  if (!displayedQuestion.value) return
+
+  if (previousFloor !== activeState.value?.current_floor) {
+    battleContainer.value?.respawnEnemy()
+  }
 }
 
 function predictObjectiveAnswer(payload: BattleSubmitPayload) {
@@ -273,6 +293,7 @@ function predictObjectiveAnswer(payload: BattleSubmitPayload) {
 async function bootstrapDailyChallenge() {
   isBootstrapping.value = true
   loadErrorMessage.value = ''
+  pendingContinueRequested.value = false
 
   try {
     await dailyChallengeStore.fetchOverview()
@@ -350,6 +371,7 @@ async function handleSubmit(payload: BattleSubmitPayload) {
   if (!result.success) {
     optimisticAnswerResult.value = null
     isAnimatingTransition.value = false
+    pendingContinueRequested.value = false
     syncDisplayedHealth()
     notificationStore.addNotification({
       title: '提交失败',
@@ -363,7 +385,20 @@ async function handleSubmit(payload: BattleSubmitPayload) {
   if (!answerResult.value || !pendingState.value) return
 
   if (optimisticAnimation) {
+    if (pendingContinueRequested.value) {
+      battleContainer.value?.cancelActiveAnimation()
+      isAnimatingTransition.value = false
+      await continueToPendingState()
+      return
+    }
+
     await optimisticAnimation
+
+    if (pendingContinueRequested.value) {
+      await continueToPendingState()
+      return
+    }
+
     optimisticAnswerResult.value = null
     isAnimatingTransition.value = false
     syncDisplayedHealth()
@@ -394,6 +429,12 @@ async function handleSubmit(payload: BattleSubmitPayload) {
   }
 
   isAnimatingTransition.value = false
+
+  if (pendingContinueRequested.value) {
+    await continueToPendingState()
+    return
+  }
+
   syncDisplayedHealth()
 }
 
@@ -401,23 +442,20 @@ async function handleContinue() {
   battleContainer.value?.cancelActiveAnimation()
   isAnimatingTransition.value = false
 
-  optimisticAnswerResult.value = null
-  const previousFloor = displayedQuestion.value?.floor
-  dailyChallengeStore.continueAfterAnswer()
-  await nextTick()
-
-  if (!displayedQuestion.value) return
-
-  syncDisplayedHealth()
-
-  if (previousFloor !== activeState.value?.current_floor) {
-    battleContainer.value?.respawnEnemy()
+  if (!pendingState.value) {
+    if (answerResultForRender.value) {
+      pendingContinueRequested.value = true
+    }
+    return
   }
+
+  await continueToPendingState()
 }
 
 watch(questionIdentity, async () => {
   if (isBootstrapping.value || answerResult.value || isAnimatingTransition.value) return
   optimisticAnswerResult.value = null
+  pendingContinueRequested.value = false
   await nextTick()
   syncDisplayedHealth()
 })
