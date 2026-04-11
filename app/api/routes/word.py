@@ -13,9 +13,16 @@ logger = get_logger(__name__)
 
 
 @router.get("/search")
-async def search(session: SessionDep, q: str | None = Query(default=None), user_in: User = Depends(get_current_user)):
-    logger.info("单词搜索：用户ID=%s 查询=%s", user_in.id, q)
-    return success_response(data=jsonable_encoder(search_word_top_10(session, q)))
+def search(
+    session: SessionDep,
+    q: str | None = Query(default=None, max_length=64),
+    user_in: User = Depends(get_current_user),
+):
+    query = (q or "").strip()
+    logger.info("单词搜索：用户ID=%s 查询=%s", user_in.id, query)
+    if not query:
+        return success_response(data=[])
+    return success_response(data=jsonable_encoder(search_word_top_10(session, query)))
 
 
 @router.post("/batch_recognize")

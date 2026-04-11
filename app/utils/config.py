@@ -50,6 +50,12 @@ def _parse_float(value: str | None, default: float) -> float:
     return float(value)
 
 
+def _parse_bool(value: str | None, default: bool) -> bool:
+    if value is None or value == "":
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
 def _deep_merge_dict(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
     merged = dict(base)
     for key, value in override.items():
@@ -158,6 +164,13 @@ class Settings:
 
     # ==================== 战斗 / 题目 ====================
     QUESTION_TYPES = ["context_guess", "cloze_test", "keyword_translation"]
+    SRS_ENABLED: bool = _parse_bool(os.getenv("SRS_ENABLED"), True)
+    SRS_TARGET_RECALL: float = _parse_float(os.getenv("SRS_TARGET_RECALL"), 0.8)
+    SRS_MODEL_HIDDEN: int = _parse_int(os.getenv("SRS_MODEL_HIDDEN"), 16)
+    SRS_MODEL_PATH: str = os.getenv(
+        "SRS_MODEL_PATH",
+        str((PROJECT_ROOT / "app" / "scripts" / "model.pt").resolve()),
+    )
 
     # ==================== 升级 ====================
     UPGRADE_HP_COINS: int = _parse_int(os.getenv("UPGRADE_HP_COINS"), 100)

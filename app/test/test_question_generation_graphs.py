@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 from app.db.question import generate_single_question
+from app.services.question_generation.context_guess_graph import _parse_ecdict_meanings
 from app.services.question_generation.cloze_test_graph import generate_cloze_test_content
 from app.services.question_generation.context_guess_graph import generate_context_guess_content
 from app.services.question_generation.dispatcher import generate_question_content
@@ -112,6 +113,13 @@ class KeywordTranslationGraphTests(unittest.IsolatedAsyncioTestCase):
 
 
 class ContextGuessGraphTests(unittest.IsolatedAsyncioTestCase):
+    def test_parse_ecdict_meanings_filters_placeholder_style_meanings(self):
+        parsed = _parse_ecdict_meanings(
+            "n. 大标题, 新闻摘要\nvt. 为...做标题, 写标题"
+        )
+
+        self.assertEqual(parsed, ["大标题", "新闻摘要", "写标题"])
+
     async def test_generate_context_guess_content_includes_story_target_forms(self):
         async def fake_generate_text(prompt: str):
             if "基于目标单词" in prompt and '"story"' in prompt:
@@ -143,6 +151,42 @@ class ContextGuessGraphTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(content["target_word"], "go")
         self.assertEqual(content["story_target_forms"], ["went"])
         self.assertIn("went", content["story"])
+
+    async def test_generate_context_guess_content_supplements_distractors_once(self):
+        supplement_mock = AsyncMock(return_value={"distractors": ["写标题"]})
+
+        async def fake_generate_text(prompt: str):
+            if "基于目标单词" in prompt and '"story"' in prompt:
+                return {"story": "The editor chose a bold headline for the morning paper."}
+            if "正确义项生成 Agent" in prompt:
+                return {"correct_meaning": "大标题", "explanation": "语境里指报纸上的醒目标题。"}
+            if "干扰项生成 Agent" in prompt:
+                return {"distractors": ["新闻摘要", "横幅"]}
+            if "干扰项补足 Agent" in prompt:
+                return await supplement_mock(prompt)
+            return {
+                "is_valid": True,
+                "story_ok": True,
+                "options_ok": True,
+                "errors": [],
+            }
+
+        with (
+            patch(
+                "app.services.question_generation.context_guess_graph.generate_text",
+                new=AsyncMock(side_effect=fake_generate_text),
+            ),
+            patch(
+                "app.services.question_generation.context_guess_graph._lookup_dictionary_meanings_sync",
+                return_value=["大标题", "新闻摘要", "写标题", "横幅"],
+            ),
+        ):
+            content = await generate_context_guess_content(user_id=3, target_word="headline")
+
+        self.assertIsNotNone(content)
+        self.assertEqual(len(content["options"]), 4)
+        self.assertIn("写标题", content["options"].values())
+        supplement_mock.assert_awaited_once()
 
 
 class DispatcherAndQuestionFlowTests(unittest.IsolatedAsyncioTestCase):
@@ -195,7 +239,67 @@ class DispatcherAndQuestionFlowTests(unittest.IsolatedAsyncioTestCase):
             result = await generate_single_question(user_id=7)
 
         self.assertIs(result, fallback_question)
-        fallback_mock.assert_awaited_once_with(7, "cloze_test")
+        fallback_mock.assert_awaited_once_with(7, "cloze_test", request_context=None)
+
+    async def test_generate_single_question_retries_with_next_queue_word_after_generation_failure(self):
+        saved_question = SimpleNamespace(id=101, type="context_guess", content={"target_word": "loaf"})
+        fake_redis = SimpleNamespace(close=AsyncMock())
+
+        with (
+            patch(
+                "app.db.question._prepare_generation_data",
+                return_value={"q_type": "context_guess", "word_count": 1},
+            ),
+            patch("app.db.question.Redis", return_value=fake_redis),
+            patch(
+                "app.db.question._pop_word_ids_from_queue",
+                new=AsyncMock(side_effect=[([1], "ok"), ([2], "ok")]),
+            ),
+            patch(
+                "app.db.question._fetch_word_texts_by_ids",
+                side_effect=[["headline"], ["loaf"]],
+            ),
+            patch(
+                "app.db.question._is_word_generation_cooled_down",
+                new=AsyncMock(side_effect=[False, False]),
+            ),
+            patch(
+                "app.db.question.generate_question_content",
+                new=AsyncMock(side_effect=[None, {"target_word": "loaf", "story": "story", "options": {"A": "面包", "B": "游荡", "C": "懒散", "D": "块"}, "correct_option": "A", "explanation": "ok"}]),
+            ) as generation_mock,
+            patch(
+                "app.db.question._record_word_generation_failure",
+                new=AsyncMock(return_value=1),
+            ) as record_failure_mock,
+            patch(
+                "app.db.question._push_word_ids_to_queue_tail",
+                new=AsyncMock(),
+            ) as push_tail_mock,
+            patch(
+                "app.db.question._save_generated_question",
+                return_value=saved_question,
+            ),
+            patch(
+                "app.db.question._mark_words_used_today",
+                new=AsyncMock(),
+            ),
+            patch(
+                "app.db.question._clear_word_generation_failure",
+                new=AsyncMock(),
+            ) as clear_failure_mock,
+            patch(
+                "app.db.question._get_fallback_question",
+                new=AsyncMock(),
+            ) as fallback_mock,
+        ):
+            result = await generate_single_question(user_id=7)
+
+        self.assertIs(result, saved_question)
+        self.assertEqual(generation_mock.await_count, 2)
+        record_failure_mock.assert_awaited_once()
+        push_tail_mock.assert_awaited_once()
+        clear_failure_mock.assert_awaited_once()
+        fallback_mock.assert_not_awaited()
 
 
 if __name__ == "__main__":

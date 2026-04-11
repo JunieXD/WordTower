@@ -48,6 +48,7 @@ from app.models.social import (
 )
 from app.models.user import User
 from app.models.user_user_link import FriendStatus
+from app.services.progression import get_level_from_exp
 from app.utils.logger import get_logger
 
 router = APIRouter(prefix="/api/social", tags=["social"])
@@ -65,7 +66,7 @@ def build_social_user(
         nickname=user.nickname,
         avatar_url=user.avatar_url,
         exp=user.exp,
-        level=user.exp // 100,
+        level=get_level_from_exp(user.exp),
         max_floor=user.max_floor,
         social_status=social_status,
         last_online_at=last_online_at,

@@ -1,32 +1,86 @@
-from sqlmodel import Session, select, func, case
+from sqlmodel import Session, select, func
 from app.models.word import Word
 from app.models.user import User
 from app.models.user_library_select import UserLibrarySelect
 from app.models.library_word_link import LibraryWordLink
-import random
+from app.services.spaced_repetition import select_words_with_srs_priority
 
-def search_word_top_10(session: Session, q: str) -> list[Word]:
-    """按匹配度排序搜索单词"""
-    # 使用 case 语句按匹配优先级排序
-    # 1. 完全匹配 (priority=3)
-    # 2. 开头匹配 (priority=2)
-    # 3. 包含匹配 (priority=1)
-    priority = case(
-        (func.lower(Word.text) == func.lower(q), 3),
-        (func.lower(Word.text).startswith(func.lower(q)), 2),
-        else_=1
+def _clean_word_filters() -> tuple:
+    return (
+        Word.text.notlike("% %"),
+        Word.text.notlike("%.%"),
+        Word.text.notlike("%'%"),
     )
-    
-    statement = (
+
+
+def _escape_like(value: str) -> str:
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def search_word_top_10(session: Session, q: str | None) -> list[Word]:
+    """按匹配优先级搜索单词：精确匹配 > 前缀匹配 > 包含匹配。"""
+    if q is None:
+        return []
+    query = q.strip().lower()
+    if not query:
+        return []
+
+    limit = 10
+    query_escaped = _escape_like(query)
+    prefix_pattern = f"{query_escaped}%"
+    contains_pattern = f"%{query_escaped}%"
+
+    filters = _clean_word_filters()
+    result: list[Word] = []
+    seen_ids: set[int] = set()
+
+    def append_unique(items: list[Word]) -> None:
+        for item in items:
+            if item.id is None or item.id in seen_ids:
+                continue
+            seen_ids.add(item.id)
+            result.append(item)
+            if len(result) >= limit:
+                return
+
+    exact_statement = (
         select(Word)
-        .where(Word.text.ilike(f"%{q}%"))
-        .where(~Word.text.contains(" "))
-        .where(~Word.text.contains("."))
-        .where(~Word.text.contains("'"))
-        .order_by(priority.desc(), func.length(Word.text), Word.text)
-        .limit(10)
+        .where(*filters)
+        .where(func.lower(Word.text) == query)
+        .order_by(func.length(Word.text), Word.text)
+        .limit(limit)
     )
-    return session.exec(statement).all()
+    append_unique(session.exec(exact_statement).all())
+    if len(result) >= limit:
+        return result
+
+    prefix_statement = (
+        select(Word)
+        .where(*filters)
+        .where(func.lower(Word.text).like(prefix_pattern, escape="\\"))
+        .where(func.lower(Word.text) != query)
+        .order_by(func.length(Word.text), Word.text)
+        .limit(limit)
+    )
+    append_unique(session.exec(prefix_statement).all())
+    if len(result) >= limit:
+        return result
+
+    # 单字符查询只做精确/前缀匹配，避免高并发下的 contains 全表压力。
+    if len(query) == 1:
+        return result
+
+    contains_statement = (
+        select(Word)
+        .where(*filters)
+        .where(Word.text.ilike(contains_pattern, escape="\\"))
+        .where(func.lower(Word.text) != query)
+        .where(~func.lower(Word.text).like(prefix_pattern, escape="\\"))
+        .order_by(func.length(Word.text), Word.text)
+        .limit(limit)
+    )
+    append_unique(session.exec(contains_statement).all())
+    return result
 
 def get_word_by_id(session: Session, word_id: int) -> Word | None:
     statement = select(Word).where(Word.id == word_id)
@@ -57,7 +111,7 @@ def random_select_word_by_type(session: Session, user: User, num: int) -> list[W
     all_words = get_user_selected_words(session, user)
     if num > len(all_words):
         return []
-    return random.sample(all_words, num)
+    return select_words_with_srs_priority(session, user, all_words, num)
 
 def get_word_by_text(session: Session, text: str) -> Word | None:
     statement = select(Word).where(Word.text == text)

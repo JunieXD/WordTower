@@ -89,6 +89,15 @@ COMMON_MEANING_SUFFIXES = (
     "米",
     "秒",
 )
+PLACEHOLDER_MEANING_MARKERS = (
+    "...",
+    "…",
+    "⋯",
+    "某人",
+    "某事",
+    "某物",
+    "某处",
+)
 
 
 def _is_option_explanatory_text(option_value: str) -> bool:
@@ -210,6 +219,13 @@ def _clean_meaning_fragment(fragment: str) -> str:
     return text.strip()
 
 
+def _is_placeholder_style_meaning(text: str) -> bool:
+    cleaned = text.strip()
+    if not cleaned:
+        return True
+    return any(marker in cleaned for marker in PLACEHOLDER_MEANING_MARKERS)
+
+
 def _parse_ecdict_meanings(meaning_text: str) -> list[str]:
     """将 ECDICT 导入的 meaning 字段解析为候选中文义项。"""
     if not meaning_text:
@@ -229,6 +245,9 @@ def _parse_ecdict_meanings(meaning_text: str) -> list[str]:
 
         # 优先短义项，过长项通常是解释句
         if len(cleaned) > 12:
+            continue
+
+        if _is_placeholder_style_meaning(cleaned):
             continue
 
         if cleaned in seen:
@@ -415,6 +434,148 @@ def _normalize_distractors(value: Any) -> list[str]:
     return result
 
 
+def _normalize_option_candidates(value: Any) -> list[str]:
+    result: list[str] = []
+    seen: set[str] = set()
+    for item in _normalize_distractors(value):
+        if _is_placeholder_style_meaning(item):
+            continue
+        if _is_option_explanatory_text(item):
+            continue
+        if item in seen:
+            continue
+        seen.add(item)
+        result.append(item)
+    return result
+
+
+def _filter_candidate_distractors(
+    correct_meaning: str,
+    distractors: list[str],
+    excluded_meanings: list[str] | None = None,
+) -> list[str]:
+    excluded = {
+        text.strip()
+        for text in (excluded_meanings or [])
+        if isinstance(text, str) and text.strip()
+    }
+    result: list[str] = []
+    seen: set[str] = set()
+    correct = correct_meaning.strip()
+
+    for item in _normalize_option_candidates(distractors):
+        if item == correct:
+            continue
+        if item in excluded:
+            continue
+        if item in seen:
+            continue
+        seen.add(item)
+        result.append(item)
+    return result
+
+
+def _build_distractor_supplement_prompt(
+    target_word: str,
+    story: str,
+    correct_meaning: str,
+    existing_distractors: list[str],
+    dictionary_meanings: list[str],
+    missing_count: int,
+) -> str:
+    dictionary_hint = _format_dictionary_hint(dictionary_meanings)
+    blocked = "、".join([correct_meaning, *existing_distractors]) if [correct_meaning, *existing_distractors] else "（无）"
+    return f"""
+你是“干扰项补足 Agent”。请只输出 JSON。
+
+任务：
+当前词义猜测题的干扰项数量不足，请补足 {missing_count} 个中文干扰项。
+
+目标单词：
+{target_word}
+
+短文：
+{story}
+
+正确义项：
+{correct_meaning}
+
+已有干扰项：
+{"、".join(existing_distractors) if existing_distractors else "（无）"}
+
+本地词典候选义项（优先参考）：
+{dictionary_hint}
+
+禁止返回：
+{blocked}
+
+要求：
+1. 只补足缺少的数量，返回 exactly {missing_count} 个。
+2. 必须是词典义项风格的短中文短语，尽量 1-8 个字符。
+3. 严禁解释句，严禁包含“...”“…”这类占位符写法。
+4. 不能与正确义项重复，也不能与已有干扰项重复。
+5. 尽量选择与正确义项可混淆、但在当前语境下应判错的义项。
+
+输出格式（仅 JSON）：
+{{
+  "distractors": ["...", "..."]
+}}
+"""
+
+
+async def _supplement_distractors_once(state: ContextGuessGraphState, correct_meaning: str, distractors: list[str]) -> list[str]:
+    filtered_distractors = _filter_candidate_distractors(correct_meaning, distractors)
+    if len(filtered_distractors) >= 3:
+        return filtered_distractors
+
+    missing_count = 3 - len(filtered_distractors)
+    target_word = state["target_word"]
+    story = state.get("story", "")
+    dictionary_meanings = list(state.get("dictionary_meanings", []))
+
+    logger.info(
+        "干扰项不足，尝试补足：用户ID=%s 目标词=%s 当前数量=%s 缺少=%s",
+        state["user_id"],
+        target_word,
+        len(filtered_distractors),
+        missing_count,
+    )
+
+    try:
+        result = await generate_text(
+            _build_distractor_supplement_prompt(
+                target_word=target_word,
+                story=story,
+                correct_meaning=correct_meaning,
+                existing_distractors=filtered_distractors,
+                dictionary_meanings=dictionary_meanings,
+                missing_count=missing_count,
+            )
+        )
+        supplement = _normalize_distractors(result.get("distractors"))
+    except Exception as e:
+        logger.warning(
+            "干扰项补足失败：用户ID=%s 目标词=%s 错误=%s",
+            state["user_id"],
+            target_word,
+            str(e),
+        )
+        return filtered_distractors
+
+    merged = _filter_candidate_distractors(
+        correct_meaning,
+        [*filtered_distractors, *supplement],
+    )
+    logger.info(
+        "干扰项补足完成：用户ID=%s 目标词=%s 补前=%s 补后=%s",
+        state["user_id"],
+        target_word,
+        len(filtered_distractors),
+        len(merged),
+    )
+    return merged
+
+
 def _merge_options(correct_meaning: str, distractors: list[str]) -> tuple[dict[str, str], str, list[str]]:
     """将正确义与干扰项合并为 A/B/C/D 选项。"""
     errors: list[str] = []
@@ -422,8 +583,7 @@ def _merge_options(correct_meaning: str, distractors: list[str]) -> tuple[dict[s
     if not correct:
         errors.append("缺少正确义项 correct_meaning")
 
-    normalized_distractors = _normalize_distractors(distractors)
-    normalized_distractors = [d for d in normalized_distractors if d != correct]
+    normalized_distractors = _filter_candidate_distractors(correct, distractors)
     if len(normalized_distractors) < 3:
         errors.append(f"干扰项不足 3 个，当前={len(normalized_distractors)}")
 
@@ -651,6 +811,8 @@ async def _options_merge_agent(state: ContextGuessGraphState) -> ContextGuessGra
 
     correct_meaning = str(state.get("correct_meaning", "")).strip()
     distractors = _normalize_distractors(state.get("distractors", []))
+    if correct_meaning:
+        distractors = await _supplement_distractors_once(state, correct_meaning, distractors)
     options, correct_option, merge_errors = _merge_options(correct_meaning, distractors)
 
     upstream_errors = [

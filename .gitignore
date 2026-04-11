@@ -12,3 +12,4 @@ wheels/
 stardict.db
 logs/
 .env
+*.log
