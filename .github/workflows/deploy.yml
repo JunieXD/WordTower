@@ -47,7 +47,28 @@ jobs:
           username: ${{ secrets.USERNAME }}
           password: ${{ secrets.PASSWORD }}
           source: "requirements.txt"
-          target: "/opt/1panel/www/sites/wt/WordTower-backend-python"
+          target: "/opt/1panel/www/sites/wt/WordTower-backend-python/"
+
+      - name: Verify exported requirements on server
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          port: ${{ secrets.PORT }}
+          username: ${{ secrets.USERNAME }}
+          password: ${{ secrets.PASSWORD }}
+          script: |
+            set -euo pipefail
+
+            BACKEND_PATH="/opt/1panel/www/sites/wt/WordTower-backend-python"
+
+            if [ ! -f "$BACKEND_PATH/requirements.txt" ]; then
+              echo "[deploy] requirements.txt missing on server"
+              ls -la "$BACKEND_PATH" || true
+              exit 1
+            fi
+
+            echo "[deploy] requirements.txt uploaded"
+            head -n 2 "$BACKEND_PATH/requirements.txt"
 
       - name: Start or restart backend container
         uses: appleboy/ssh-action@master
