@@ -12,7 +12,18 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Deploy via SSH
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: ".python-version"
+
+      - name: Install uv
+        run: python -m pip install --upgrade pip uv
+
+      - name: Export requirements
+        run: bash scripts/export_requirements.sh
+
+      - name: Update backend code on server
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.HOST }}
@@ -21,112 +32,90 @@ jobs:
           password: ${{ secrets.PASSWORD }}
           script: |
             set -euo pipefail
-            export UV_HTTP_TIMEOUT="${UV_HTTP_TIMEOUT:-120}"
+
+            BACKEND_PATH="/opt/1panel/www/sites/wt/WordTower-backend-python"
+
+            echo "[deploy] update backend code"
+            cd "$BACKEND_PATH"
+            git pull origin main
+
+      - name: Upload exported requirements
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          port: ${{ secrets.PORT }}
+          username: ${{ secrets.USERNAME }}
+          password: ${{ secrets.PASSWORD }}
+          source: "requirements.txt"
+          target: "/opt/1panel/www/sites/wt/WordTower-backend-python"
+
+      - name: Start or restart backend container
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          port: ${{ secrets.PORT }}
+          username: ${{ secrets.USERNAME }}
+          password: ${{ secrets.PASSWORD }}
+          script: |
+            set -euo pipefail
 
             BACKEND_PATH="/opt/1panel/www/sites/wt/WordTower-backend-python"
             BACKEND_CONTAINER_NAME="wt"
 
-            echo "[deploy] start backend deploy"
-            cd "$BACKEND_PATH"
-            git pull origin main
+            find_compose_file() {
+              for base in "$BACKEND_PATH" "$(dirname "$BACKEND_PATH")"; do
+                [ -d "$base" ] || continue
+                found="$(
+                  find "$base" -maxdepth 3 -type f \
+                    \( -name "docker-compose.yml" -o -name "docker-compose.yaml" -o -name "compose.yml" -o -name "compose.yaml" \) \
+                    2>/dev/null | head -n 1 || true
+                )"
+                if [ -n "$found" ]; then
+                  echo "$found"
+                  return 0
+                fi
+              done
+              return 1
+            }
 
-            # Keep requirements.txt updated if uv exists on host.
-            if command -v uv >/dev/null 2>&1 && [ -f "pyproject.toml" ]; then
-              {
-                echo "--index-url https://pypi.org/simple"
-                echo "--extra-index-url https://download.pytorch.org/whl/cpu"
-                uv export --format requirements-txt --no-hashes
-              } > requirements.txt
+            RUNNING_CONTAINER_ID="$(docker ps -q --filter "name=^/${BACKEND_CONTAINER_NAME}$" | head -n 1)"
+            STOPPED_CONTAINER_ID="$(docker ps -aq --filter "name=^/${BACKEND_CONTAINER_NAME}$" | head -n 1)"
+            CONTAINER_ID=""
+
+            if [ -n "$RUNNING_CONTAINER_ID" ]; then
+              CONTAINER_ID="$RUNNING_CONTAINER_ID"
+              echo "[deploy] restart backend container"
+              docker restart "$CONTAINER_ID" >/dev/null
+            elif [ -n "$STOPPED_CONTAINER_ID" ]; then
+              CONTAINER_ID="$STOPPED_CONTAINER_ID"
+              echo "[deploy] start existing backend container"
+              docker start "$CONTAINER_ID" >/dev/null
+            else
+              COMPOSE_FILE="$(find_compose_file || true)"
+              if [ -n "$COMPOSE_FILE" ] && docker compose version >/dev/null 2>&1; then
+                echo "[deploy] backend container not found, try docker compose up via $COMPOSE_FILE"
+                (
+                  cd "$(dirname "$COMPOSE_FILE")"
+                  docker compose -f "$COMPOSE_FILE" up -d
+                )
+                CONTAINER_ID="$(
+                  cd "$(dirname "$COMPOSE_FILE")"
+                  docker compose -f "$COMPOSE_FILE" ps -q | head -n 1
+                )"
+              fi
             fi
 
-            CONTAINER_ID="$(docker ps -aq --filter "name=^/${BACKEND_CONTAINER_NAME}$" | head -n 1)"
-            if [ -z "$CONTAINER_ID" ]; then
-              CONTAINER_ID="$(docker ps -aq --filter "name=${BACKEND_CONTAINER_NAME}" | head -n 1)"
-            fi
             if [ -z "$CONTAINER_ID" ]; then
               echo "[deploy] backend container not found: ${BACKEND_CONTAINER_NAME}"
-              echo "[deploy] available containers:"
               docker ps -a --format "table {{.ID}}\t{{.Names}}\t{{.Status}}" || true
               exit 1
             fi
-            if [ "$(docker inspect -f "{{.State.Running}}" "$CONTAINER_ID" 2>/dev/null || echo false)" != "true" ]; then
-              echo "[deploy] backend container is stopped, trying to start: ${BACKEND_CONTAINER_NAME}"
-              docker start "$CONTAINER_ID" >/dev/null
-              sleep 5
-            fi
-            if [ "$(docker inspect -f "{{.State.Running}}" "$CONTAINER_ID" 2>/dev/null || echo false)" != "true" ]; then
-              echo "[deploy] backend container failed to start: ${BACKEND_CONTAINER_NAME}"
-              docker logs --tail 120 "$CONTAINER_ID" || true
-              exit 1
-            fi
 
-            MIGRATED=0
-
-            echo "[deploy] try migrate in container"
-            if docker exec "$CONTAINER_ID" sh -lc '
-              set -e
-
-              ALEMBIC_INI_PATH=""
-              for base in /opt /app /srv /workspace /usr/src /code /; do
-                if [ -d "$base" ]; then
-                  found="$(find "$base" -type f -name "alembic.ini" 2>/dev/null | head -n 1 || true)"
-                  if [ -n "$found" ]; then
-                    ALEMBIC_INI_PATH="$found"
-                    break
-                  fi
-                fi
-              done
-
-              if [ -z "$ALEMBIC_INI_PATH" ]; then
-                echo "[migrate] alembic.ini not found in container"
-                exit 1
-              fi
-
-              ALEMBIC_DIR="$(dirname "$ALEMBIC_INI_PATH")"
-              cd "$ALEMBIC_DIR"
-              echo "[migrate] using $ALEMBIC_INI_PATH"
-
-              if command -v uv >/dev/null 2>&1; then
-                uv run alembic -c "$ALEMBIC_INI_PATH" upgrade head
-              elif command -v alembic >/dev/null 2>&1; then
-                alembic -c "$ALEMBIC_INI_PATH" upgrade head
-              elif command -v python >/dev/null 2>&1; then
-                (
-                  cd /
-                  python -m alembic -c "$ALEMBIC_INI_PATH" upgrade head
-                )
-              else
-                echo "[migrate] no uv/alembic/python in container"
-                exit 1
-              fi
-            '; then
-              MIGRATED=1
-            else
-              echo "[deploy] container migration failed, fallback to host"
-            fi
-
-            if [ "$MIGRATED" -ne 1 ]; then
-              if command -v uv >/dev/null 2>&1 && [ -f "$BACKEND_PATH/app/alembic.ini" ]; then
-                (
-                  cd "$BACKEND_PATH/app"
-                  uv run alembic -c "$BACKEND_PATH/app/alembic.ini" upgrade head
-                )
-                MIGRATED=1
-                echo "[deploy] host migration completed"
-              fi
-            fi
-
-            if [ "$MIGRATED" -ne 1 ]; then
-              echo "[deploy] migration failed in both container and host"
-              exit 1
-            fi
-
-            echo "[deploy] restart backend container"
-            docker restart "$CONTAINER_ID"
             sleep 8
             if [ "$(docker inspect -f "{{.State.Running}}" "$CONTAINER_ID" 2>/dev/null || echo false)" != "true" ]; then
-              echo "[deploy] backend container is not running after restart"
+              echo "[deploy] backend container is not running after deploy"
               docker logs --tail 120 "$CONTAINER_ID" || true
               exit 1
             fi
+
             echo "[deploy] backend deploy completed"
