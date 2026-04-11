@@ -21,6 +21,7 @@ jobs:
           password: ${{ secrets.PASSWORD }}
           script: |
             set -euo pipefail
+            export UV_HTTP_TIMEOUT="${UV_HTTP_TIMEOUT:-120}"
 
             BACKEND_PATH="/opt/1panel/www/sites/wt/WordTower-backend-python"
             BACKEND_CONTAINER_NAME="wt"
@@ -67,11 +68,14 @@ jobs:
               echo "[migrate] using $ALEMBIC_INI_PATH"
 
               if command -v uv >/dev/null 2>&1; then
-                uv run alembic upgrade head
+                uv run alembic -c "$ALEMBIC_INI_PATH" upgrade head
               elif command -v alembic >/dev/null 2>&1; then
-                alembic upgrade head
+                alembic -c "$ALEMBIC_INI_PATH" upgrade head
               elif command -v python >/dev/null 2>&1; then
-                python -m alembic upgrade head
+                (
+                  cd /
+                  python -m alembic -c "$ALEMBIC_INI_PATH" upgrade head
+                )
               else
                 echo "[migrate] no uv/alembic/python in container"
                 exit 1
@@ -86,7 +90,7 @@ jobs:
               if command -v uv >/dev/null 2>&1 && [ -f "$BACKEND_PATH/app/alembic.ini" ]; then
                 (
                   cd "$BACKEND_PATH/app"
-                  uv run alembic upgrade head
+                  uv run alembic -c "$BACKEND_PATH/app/alembic.ini" upgrade head
                 )
                 MIGRATED=1
                 echo "[deploy] host migration completed"
