@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
+import { formatChatMessageTime, parseSocialDate } from '@/views/social/socialHelpers'
 
 const route = useRoute()
 const router = useRouter()
@@ -43,13 +44,13 @@ function getInitials(user: SocialUserSummary | null) {
 }
 
 function formatBubbleTime(value: string) {
-  const date = new Date(value)
-  return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`
+  return formatChatMessageTime(value)
 }
 
 function formatLastOnline(value: string | null) {
   if (!value) return '暂时没有记录'
-  const date = new Date(value)
+  const date = parseSocialDate(value)
+  if (!date) return '暂时没有记录'
   const diff = Date.now() - date.getTime()
   if (diff < 60_000) return '刚刚在线'
   if (diff < 3_600_000) return `${Math.max(1, Math.floor(diff / 60_000))} 分钟前在线`

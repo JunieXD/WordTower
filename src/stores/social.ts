@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import request from '@/utils/request'
 import { useUserProfileStore } from '@/stores/userProfile'
+import { getSocialTimestamp } from '@/views/social/socialHelpers'
 
 export type SocialStatus = 'offline' | 'online' | 'combat'
 export type RelationStatus = 'none' | 'accepted' | 'outgoing_pending' | 'incoming_pending'
@@ -67,9 +68,11 @@ function normalizeMessages(messages: ChatMessage[]): ChatMessage[] {
   for (const message of messages) {
     map.set(message.id, message)
   }
-  return [...map.values()].sort(
-    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
-  )
+  return [...map.values()].sort((a, b) => {
+    const aTime = getSocialTimestamp(a.created_at) ?? 0
+    const bTime = getSocialTimestamp(b.created_at) ?? 0
+    return aTime - bTime
+  })
 }
 
 function sortFriends(items: FriendConversation[]): FriendConversation[] {
@@ -80,8 +83,8 @@ function sortFriends(items: FriendConversation[]): FriendConversation[] {
   }
 
   return [...items].sort((a, b) => {
-    const aTime = a.last_message ? new Date(a.last_message.created_at).getTime() : null
-    const bTime = b.last_message ? new Date(b.last_message.created_at).getTime() : null
+    const aTime = a.last_message ? getSocialTimestamp(a.last_message.created_at) : null
+    const bTime = b.last_message ? getSocialTimestamp(b.last_message.created_at) : null
 
     if (aTime !== null && bTime !== null && aTime !== bTime) {
       return bTime - aTime
