@@ -26,6 +26,9 @@
     </p>
     <p class="text-md">{{ displayedExplanation }}</p>
     <p v-if="displayedCorrectText" class="text-md text-gray-700">正确答案：{{ displayedCorrectText }}</p>
+    <p v-if="displayedReviewHint" class="text-sm text-gray-700">
+      预计复习：{{ displayedReviewHint }}
+    </p>
     <Button class="self-start mt-2" variant="outline" :disabled="isSubmitting" @click="handleContinue">
       继续
     </Button>
@@ -154,6 +157,8 @@ const displayedResult = computed(() => {
             explanation?: string
             correct_text?: string
             correct_option?: string
+            target_word?: string
+            next_review_days?: number
           }
         }
       | null
@@ -173,6 +178,23 @@ const displayedResult = computed(() => {
 
 const displayedExplanation = computed(() => displayedResult.value?.detail?.explanation ?? '')
 const displayedCorrectText = computed(() => displayedResult.value?.detail?.correct_text ?? '')
+const displayedDetail = computed<Record<string, unknown>>(() => {
+  const detail = displayedResult.value?.detail
+  return detail && typeof detail === 'object' ? (detail as Record<string, unknown>) : {}
+})
+const displayedReviewHint = computed(() => {
+  const days = displayedDetail.value.next_review_days
+  if (typeof days !== 'number' || !Number.isFinite(days) || days < 0) return ''
+
+  const target =
+    typeof displayedDetail.value.target_word === 'string'
+      ? displayedDetail.value.target_word
+      : targetWord.value
+  const roundedDays = Math.max(1, Math.round(days))
+  const dayText = days < 1 ? '不到 1 天后' : `${roundedDays} 天后`
+
+  return target ? `${target} 约 ${dayText}` : `约 ${dayText}`
+})
 
 const handleOptionClick = (option: string) => {
   if (isAnswered.value || props.isSubmitting) return

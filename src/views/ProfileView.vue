@@ -18,21 +18,18 @@ import { useRouter } from 'vue-router'
 import { useNotificationStore } from '@/stores/notification'
 import { useUserProfileStore } from '@/stores/userProfile'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import { getLevelInfo } from '@/utils/progression'
 
 const confirmRef = ref<InstanceType<typeof ConfirmDialog>>()
 const router = useRouter()
 const notificationStore = useNotificationStore()
 const userProfileStore = useUserProfileStore()
 
-const level = computed(() => {
-  const exp = userProfileStore.profile?.exp ?? 0
-  return Math.floor(exp / 100)
-})
-
-const currentLevelExp = computed(() => {
-  const exp = userProfileStore.profile?.exp ?? 0
-  return exp % 100
-})
+const levelInfo = computed(() => getLevelInfo(userProfileStore.profile?.exp ?? 0))
+const level = computed(() => levelInfo.value.level)
+const currentLevelExp = computed(() => levelInfo.value.currentLevelExp)
+const nextLevelNeedExp = computed(() => levelInfo.value.nextLevelNeedExp)
+const levelProgressPercent = computed(() => levelInfo.value.progressPercent)
 
 const logout = async () => {
   try {
@@ -108,7 +105,11 @@ onMounted(async () => {
           <ItemDescription> 等级：{{ level }} </ItemDescription>
           <ItemDescription> 金币：{{ userProfileStore.profile?.coins ?? 0 }} </ItemDescription>
         </div>
-        <Progress :model-value="currentLevelExp" :label="`${currentLevelExp} / 100`" show-label />
+        <Progress
+          :model-value="levelProgressPercent"
+          :label="`${currentLevelExp} / ${nextLevelNeedExp}`"
+          show-label
+        />
       </ItemContent>
       <ItemActions>
         <Button variant="ghost" size="icon" class="rounded-full">

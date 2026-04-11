@@ -1,5 +1,5 @@
 <template>
-  <div class="flex h-screen flex-col items-center p-8 gap-6">
+  <div class="flex h-full min-h-0 flex-col items-center gap-4 overflow-y-auto p-4 pb-24 sm:gap-6">
     <Card class="border-dashed py-2 w-full max-w-md">
         <CardContent class="space-y-3 p-4">
           <div class="flex items-center justify-between">
@@ -68,7 +68,7 @@
       </Card>
     </div>
 
-    <div class="mt-8 flex w-full max-w-md flex-1 flex-col justify-center gap-4">
+    <div class="mt-auto lg:mb-8 flex w-full max-w-md flex-col gap-4 pt-2 sm:pt-4">
       <Button variant="outline" class="h-12 w-full text-md" @click="$router.push({ name: 'combat' })">
         开始闯塔
       </Button>

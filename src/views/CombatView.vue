@@ -61,6 +61,7 @@ import { Button } from '@/components/ui/button'
 import {
   useCombatStore,
   type AnswerDetail,
+  type AnswerQuestionMeta,
   type CombatInfo,
   type Question,
   type QuestionContent0,
@@ -237,6 +238,25 @@ function buildLocalAnswerResult(
   }
 }
 
+function attachReviewHintToAnswerResult(question: Question, meta: AnswerQuestionMeta | null) {
+  if (question.type !== 'context_guess' || !meta) return
+  if (typeof meta.next_review_days !== 'number' || !Number.isFinite(meta.next_review_days)) return
+  if (!currentAnswerResult.value) return
+
+  const current = currentAnswerResult.value as { detail?: Record<string, unknown> }
+  currentAnswerResult.value = {
+    ...current,
+    detail: {
+      ...(current.detail ?? {}),
+      next_review_days: meta.next_review_days,
+      target_word:
+        typeof meta.target_word === 'string' && meta.target_word.trim()
+          ? meta.target_word
+          : (question.content as QuestionContent0).target_word,
+    },
+  }
+}
+
 async function rateQuestion(rating: number) {
   userRating.value = rating
   if (!combatStore.currentQuestion) return
@@ -272,11 +292,12 @@ async function handleAnswer(payload: BattleAnswerEvent) {
     answerDetail as AnswerDetail | undefined,
   )
 
-  await combatStore.answerQuestion(
+  const answerMeta = await combatStore.answerQuestion(
     combatStore.currentQuestion.id,
     isCorrect,
     answerDetail as AnswerDetail | undefined,
   )
+  attachReviewHintToAnswerResult(combatStore.currentQuestion, answerMeta)
 
   isAnimatingTransition.value = true
 

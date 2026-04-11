@@ -68,6 +68,11 @@ export interface CheckoutInfo {
   total_coins: number
 }
 
+export interface AnswerQuestionMeta {
+  target_word?: string
+  next_review_days?: number
+}
+
 export const useCombatStore = defineStore('combat', () => {
   const combatInfo = ref<CombatInfo | null>(null)
   const currentQuestion = ref<Question | null>(null)
@@ -94,12 +99,17 @@ export const useCombatStore = defineStore('combat', () => {
     return res.data.data as QuestionCheckResult
   }
 
-  async function answerQuestion(questionId: number, isCorrect: boolean, answerDetail?: AnswerDetail) {
-    await request.post(`/api/question/answer/${questionId}`, {
+  async function answerQuestion(
+    questionId: number,
+    isCorrect: boolean,
+    answerDetail?: AnswerDetail,
+  ): Promise<AnswerQuestionMeta | null> {
+    const res = await request.post(`/api/question/answer/${questionId}`, {
       level_id: combatInfo.value?.level_id,
       is_correct: isCorrect,
       answer_detail: answerDetail ?? null,
     })
+    return (res.data?.data ?? null) as AnswerQuestionMeta | null
   }
 
   async function StartCombat() {
