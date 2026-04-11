@@ -32,7 +32,11 @@ jobs:
 
             # Keep requirements.txt updated if uv exists on host.
             if command -v uv >/dev/null 2>&1 && [ -f "pyproject.toml" ]; then
-              uv export --format requirements-txt --no-hashes > requirements.txt
+              {
+                echo "--index-url https://pypi.org/simple"
+                echo "--extra-index-url https://download.pytorch.org/whl/cpu"
+                uv export --format requirements-txt --no-hashes
+              } > requirements.txt
             fi
 
             CONTAINER_ID="$(docker ps -q --filter "name=${BACKEND_CONTAINER_NAME}" | head -n 1)"
@@ -104,4 +108,10 @@ jobs:
 
             echo "[deploy] restart backend container"
             docker restart "$CONTAINER_ID"
+            sleep 8
+            if [ "$(docker inspect -f "{{.State.Running}}" "$CONTAINER_ID" 2>/dev/null || echo false)" != "true" ]; then
+              echo "[deploy] backend container is not running after restart"
+              docker logs --tail 120 "$CONTAINER_ID" || true
+              exit 1
+            fi
             echo "[deploy] backend deploy completed"
