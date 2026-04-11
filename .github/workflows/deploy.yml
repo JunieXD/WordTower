@@ -39,9 +39,24 @@ jobs:
               } > requirements.txt
             fi
 
-            CONTAINER_ID="$(docker ps -q --filter "name=${BACKEND_CONTAINER_NAME}" | head -n 1)"
+            CONTAINER_ID="$(docker ps -aq --filter "name=^/${BACKEND_CONTAINER_NAME}$" | head -n 1)"
             if [ -z "$CONTAINER_ID" ]; then
-              echo "[deploy] no running backend container found: ${BACKEND_CONTAINER_NAME}"
+              CONTAINER_ID="$(docker ps -aq --filter "name=${BACKEND_CONTAINER_NAME}" | head -n 1)"
+            fi
+            if [ -z "$CONTAINER_ID" ]; then
+              echo "[deploy] backend container not found: ${BACKEND_CONTAINER_NAME}"
+              echo "[deploy] available containers:"
+              docker ps -a --format "table {{.ID}}\t{{.Names}}\t{{.Status}}" || true
+              exit 1
+            fi
+            if [ "$(docker inspect -f "{{.State.Running}}" "$CONTAINER_ID" 2>/dev/null || echo false)" != "true" ]; then
+              echo "[deploy] backend container is stopped, trying to start: ${BACKEND_CONTAINER_NAME}"
+              docker start "$CONTAINER_ID" >/dev/null
+              sleep 5
+            fi
+            if [ "$(docker inspect -f "{{.State.Running}}" "$CONTAINER_ID" 2>/dev/null || echo false)" != "true" ]; then
+              echo "[deploy] backend container failed to start: ${BACKEND_CONTAINER_NAME}"
+              docker logs --tail 120 "$CONTAINER_ID" || true
               exit 1
             fi
 
