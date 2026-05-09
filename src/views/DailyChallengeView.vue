@@ -116,9 +116,7 @@ const questionForRender = computed(() => displayedQuestion.value ?? undefined)
 const answerResultForRender = computed(
   () => answerResult.value ?? optimisticAnswerResult.value ?? undefined,
 )
-const isQuestionSubmitting = computed(
-  () => isSubmittingAnswer.value && !Boolean(answerResultForRender.value),
-)
+const isQuestionSubmitting = computed(() => isSubmittingAnswer.value)
 const showQuestionPanel = computed(() => {
   if (isBootstrapping.value || isLoadingOverview.value || isStartingChallenge.value) return false
   if (loadErrorMessage.value) return false

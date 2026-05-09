@@ -1,5 +1,6 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
+import { AxiosError } from 'axios'
 
 import request from '@/utils/request'
 import type {
@@ -249,6 +250,12 @@ export const useDailyChallengeStore = defineStore('dailyChallenge', () => {
         success: Boolean(res.data.success),
         message: String(res.data.message ?? ''),
       }
+    } catch (error) {
+      const message =
+        error instanceof AxiosError && error.code === 'ECONNABORTED'
+          ? '提交超时，下一题准备时间过长，请稍后重试'
+          : '提交失败，请检查网络或稍后重试'
+      return { success: false, message }
     } finally {
       isSubmittingAnswer.value = false
     }

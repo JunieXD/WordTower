@@ -30,7 +30,7 @@
       预计复习：{{ displayedReviewHint }}
     </p>
     <Button class="self-start mt-2" variant="outline" :disabled="isSubmitting" @click="handleContinue">
-      继续
+      {{ isSubmitting ? '下一题准备中...' : '继续' }}
     </Button>
   </Card>
 </template>

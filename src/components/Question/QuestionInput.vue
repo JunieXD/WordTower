@@ -36,7 +36,7 @@
     <p v-if="displayedReferenceAnswer" class="text-md">参考答案：{{ displayedReferenceAnswer }}</p>
     <p v-if="displayBetterTranslation" class="text-md">建议改写：{{ displayBetterTranslation }}</p>
     <Button class="self-start mt-2" variant="outline" :disabled="isSubmitting" @click="handleContinue">
-      继续
+      {{ isSubmitting ? '下一题准备中...' : '继续' }}
     </Button>
   </Card>
 </template>
