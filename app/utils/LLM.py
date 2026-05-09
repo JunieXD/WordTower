@@ -6,7 +6,12 @@ from typing import Dict, Any, List, Tuple
 from app.utils.logger import get_logger
 from app.utils.word_forms import text_contains_target_form
 
-client = AsyncOpenAI(api_key=settings.ARK_API_KEY, base_url=settings.ARK_API_BASE_URL)
+client = AsyncOpenAI(
+    api_key=settings.ARK_API_KEY,
+    base_url=settings.ARK_API_BASE_URL,
+    timeout=20.0,
+    max_retries=1,
+)
 logger = get_logger(__name__)
 
 # 最大重试次数

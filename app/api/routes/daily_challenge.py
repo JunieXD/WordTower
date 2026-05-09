@@ -38,7 +38,17 @@ logger = get_logger(__name__)
 
 @router.get("/overview")
 async def get_overview(session: SessionDep, current_user: User = Depends(get_current_user)):
-    overview = get_daily_overview(session, current_user, _now_utc())
+    current_time = _now_utc()
+    day = get_or_create_daily_day(session, current_time)
+    overview = get_daily_overview(session, current_user, current_time)
+    active_run = get_daily_run_for_day(session, day.id, current_user.id)
+    if active_run is not None and active_run.status == DailyChallengeRunStatus.IN_PROGRESS:
+        schedule_daily_question_prewarm(
+            day_id=day.id,
+            floor=active_run.current_floor,
+            question_index=active_run.current_question_index,
+            enemy_hp=active_run.current_enemy_hp,
+        )
     logger.info("获取每日挑战概览：用户ID=%s 状态=%s", current_user.id, overview.user_status)
     return success_response(data=jsonable_encoder(overview))
 
@@ -68,7 +78,8 @@ async def start_daily_challenge(
     redis: Redis = Depends(get_redis),
     current_user: User = Depends(get_current_user),
 ):
-    active_run = get_active_daily_run(session, current_user.id)
+    day = get_or_create_daily_day(session, _now_utc())
+    active_run = get_active_daily_run(session, current_user.id, day.id)
     if active_run is not None:
         day = session.get(DailyChallengeDay, active_run.day_id)
         if day is None:
@@ -109,7 +120,6 @@ async def start_daily_challenge(
             data=jsonable_encoder(_build_daily_state(day, active_run, floor_question, question))
         )
 
-    day = get_or_create_daily_day(session, _now_utc())
     today_run = get_daily_run_for_day(session, day.id, current_user.id)
     if today_run is not None and today_run.status != DailyChallengeRunStatus.IN_PROGRESS:
         logger.warning("每日挑战开启失败：今日已结束，用户ID=%s run_id=%s", current_user.id, today_run.id)
@@ -150,7 +160,8 @@ async def answer_daily_challenge(
     redis: Redis = Depends(get_redis),
     current_user: User = Depends(get_current_user),
 ):
-    run = get_active_daily_run(session, current_user.id)
+    day = get_or_create_daily_day(session, _now_utc())
+    run = get_active_daily_run(session, current_user.id, day.id)
     if run is None:
         logger.warning("每日挑战作答失败：无进行中挑战，用户ID=%s", current_user.id)
         return conflict_response(message="当前没有可继续的每日挑战")

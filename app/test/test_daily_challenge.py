@@ -13,6 +13,7 @@ from app.db.daily_challenge import _build_daily_prewarm_positions
 from app.db.daily_challenge import _sanitize_question_content
 from app.db.daily_challenge import get_daily_challenge_window
 from app.db.daily_challenge import get_daily_leaderboard
+from app.db.daily_challenge import get_daily_overview
 from app.models.daily_challenge import DailyChallengeDay
 from app.models.daily_challenge import DailyChallengeRun
 from app.models.daily_challenge import DailyChallengeRunStatus
@@ -82,9 +83,41 @@ class DailyChallengeTests(unittest.TestCase):
 
             self.assertEqual(first.id, second.id)
 
+    def test_overview_ignores_stale_active_run_from_previous_day(self):
+        now = datetime(2026, 4, 6, 22, 1, tzinfo=timezone.utc)
+        with Session(self.engine) as session:
+            stale_run = DailyChallengeRun(
+                day_id=self.day_id,
+                user_id=self.alice_id,
+                status=DailyChallengeRunStatus.IN_PROGRESS,
+                current_floor=2,
+                current_question_index=8,
+                current_hp=70,
+                current_enemy_hp=10,
+                best_floor=2,
+                best_floor_reached_at=now - timedelta(hours=1),
+                started_at=now - timedelta(hours=2),
+            )
+            session.add(stale_run)
+            session.commit()
+
+            overview = get_daily_overview(session, session.get(User, self.alice_id), now)
+
+            self.assertEqual(overview.day_key, "2026-04-07")
+            self.assertEqual(overview.user_status, "not_started")
+            self.assertIsNone(overview.active_run)
+
     def test_prewarm_positions_follow_shared_future_path(self):
-        positions = _build_daily_prewarm_positions(floor=1, question_index=1, enemy_hp=30, count=3)
-        self.assertEqual(positions, [(1, 2), (1, 3), (2, 1)])
+        positions = _build_daily_prewarm_positions(floor=1, question_index=1, enemy_hp=30, count=6)
+        self.assertEqual(positions, [(1, 2), (1, 3), (1, 4), (2, 1), (2, 2), (2, 3)])
+
+    def test_prewarm_positions_shrink_with_remaining_enemy_hp(self):
+        positions = _build_daily_prewarm_positions(floor=1, question_index=3, enemy_hp=20, count=6)
+        self.assertEqual(positions, [(1, 4), (1, 5), (2, 1), (2, 2)])
+
+    def test_prewarm_positions_for_last_hit(self):
+        positions = _build_daily_prewarm_positions(floor=1, question_index=3, enemy_hp=10, count=6)
+        self.assertEqual(positions, [(1, 4), (2, 1)])
 
     def test_daily_leaderboard_sorts_by_floor_then_first_reached_time(self):
         now = datetime.now(timezone.utc)

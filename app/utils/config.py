@@ -191,7 +191,7 @@ class Settings:
     # ==================== 每日挑战：基础运行参数 ====================
     DAILY_CHALLENGE_RESET_HOUR: int = _parse_int(os.getenv("DAILY_CHALLENGE_RESET_HOUR"), 6)
     DAILY_CHALLENGE_TIMEZONE: str = os.getenv("DAILY_CHALLENGE_TIMEZONE", "Asia/Shanghai")
-    DAILY_CHALLENGE_PREWARM_COUNT: int = _parse_int(os.getenv("DAILY_CHALLENGE_PREWARM_COUNT"), 3)
+    DAILY_CHALLENGE_PREWARM_COUNT: int = _parse_int(os.getenv("DAILY_CHALLENGE_PREWARM_COUNT"), 6)
     DAILY_CHALLENGE_LEADERBOARD_LIMIT: int = _parse_int(
         os.getenv("DAILY_CHALLENGE_LEADERBOARD_LIMIT"),
         20,

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import math
 import random
 import uuid
 from dataclasses import dataclass
@@ -50,6 +51,10 @@ logger = get_logger(__name__)
 DAILY_LOCK_POLL_INTERVAL_SECONDS = 0.25
 DAILY_LOCK_MAX_WAIT_SECONDS = 20
 DAY_GENERATION_LOCK_TTL_SECONDS = 120
+DAILY_QUESTION_GENERATION_TIMEOUT_SECONDS = 18
+DAILY_QUESTION_GENERATION_MAX_RETRIES = 1
+DAILY_PREWARM_TASK_TIMEOUT_SECONDS = 90
+_scheduled_prewarm_keys: set[tuple[int, int, int, int]] = set()
 
 
 @dataclass
@@ -61,6 +66,12 @@ class JudgedAnswer:
 
 def _now_utc() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _ensure_utc_aware(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
 
 
 def _get_daily_timezone():
@@ -129,13 +140,15 @@ def get_or_create_daily_day(session: Session, now_utc: datetime | None = None) -
     return day
 
 
-def get_active_daily_run(session: Session, user_id: int) -> DailyChallengeRun | None:
+def get_active_daily_run(session: Session, user_id: int, day_id: int | None = None) -> DailyChallengeRun | None:
     statement = (
         select(DailyChallengeRun)
         .where(DailyChallengeRun.user_id == user_id)
         .where(DailyChallengeRun.status == DailyChallengeRunStatus.IN_PROGRESS)
-        .order_by(DailyChallengeRun.started_at.desc())
     )
+    if day_id is not None:
+        statement = statement.where(DailyChallengeRun.day_id == day_id)
+    statement = statement.order_by(DailyChallengeRun.started_at.desc())
     return session.exec(statement).first()
 
 
@@ -247,20 +260,20 @@ def _build_daily_prewarm_positions(
     if count <= 0:
         return []
 
-    positions: list[tuple[int, int]] = []
-    simulated_floor = floor
-    simulated_question_index = question_index
-    simulated_enemy_hp = enemy_hp
+    player_attack = max(1, settings.DAILY_CHALLENGE_PLAYER_ATTACK)
+    hits_to_clear_current_enemy = max(1, math.ceil(max(1, enemy_hp) / player_attack))
+    target_count = min(count, hits_to_clear_current_enemy * 2)
 
-    for _ in range(count):
-        simulated_enemy_hp -= settings.DAILY_CHALLENGE_PLAYER_ATTACK
-        if simulated_enemy_hp <= 0:
-            simulated_floor += 1
-            simulated_question_index = 1
-            simulated_enemy_hp = settings.DAILY_CHALLENGE_ENEMY_HP
-        else:
-            simulated_question_index += 1
-        positions.append((simulated_floor, simulated_question_index))
+    positions: list[tuple[int, int]] = []
+    for offset in range(1, hits_to_clear_current_enemy + 1):
+        if len(positions) >= target_count:
+            break
+        positions.append((floor, question_index + offset))
+
+    for offset in range(1, hits_to_clear_current_enemy + 1):
+        if len(positions) >= target_count:
+            break
+        positions.append((floor + 1, offset))
 
     return positions
 
@@ -278,6 +291,47 @@ def _get_daily_floor_question(
         .where(DailyChallengeFloorQuestion.question_index == question_index)
     )
     return session.exec(statement).first()
+
+
+def _get_question_word_ids(session: Session, question_id: int) -> list[int]:
+    statement = select(QuestionWordLink.word_id).where(QuestionWordLink.question_id == question_id)
+    return [int(word_id) for word_id in session.exec(statement).all()]
+
+
+def _select_daily_fallback_question(
+    session: Session,
+    day_id: int,
+    q_type: str,
+) -> tuple[Question, list[int]] | tuple[None, list[int]]:
+    used_word_ids = _get_used_word_ids_for_day(session, day_id)
+    fallback_statement = (
+        select(Question)
+        .where(Question.type == q_type)
+        .order_by(Question.id.desc())
+        .limit(100)
+    )
+
+    first_candidate: tuple[Question, list[int]] | None = None
+    for question in session.exec(fallback_statement).all():
+        if question.id is None:
+            continue
+
+        word_ids = _get_question_word_ids(session, question.id)
+        if first_candidate is None:
+            first_candidate = (question, word_ids)
+        if not set(word_ids) & used_word_ids:
+            return question, word_ids
+
+    if first_candidate is not None:
+        logger.warning(
+            "每日挑战兜底题与当日用词重复：day_id=%s type=%s question_id=%s",
+            day_id,
+            q_type,
+            first_candidate[0].id,
+        )
+        return first_candidate
+
+    return None, []
 
 
 def _save_daily_generated_question(
@@ -320,6 +374,44 @@ def _save_daily_generated_question(
     session.refresh(floor_question)
     session.refresh(question)
     return floor_question, question
+
+
+def _save_daily_existing_question(
+    session: Session,
+    day: DailyChallengeDay,
+    floor: int,
+    question_index: int,
+    question: Question,
+    word_ids: list[int],
+    now_utc: datetime,
+) -> DailyChallengeFloorQuestion:
+    existing_used_word_ids = _get_used_word_ids_for_day(session, day.id)
+    for word_id in word_ids:
+        if word_id in existing_used_word_ids:
+            continue
+        session.add(
+            DailyChallengeUsedWord(
+                day_id=day.id,
+                floor=floor,
+                question_index=question_index,
+                word_id=word_id,
+                created_at=now_utc,
+            )
+        )
+
+    floor_question = DailyChallengeFloorQuestion(
+        day_id=day.id,
+        floor=floor,
+        question_index=question_index,
+        question_id=question.id,
+        question_type=question.type or "",
+        word_ids=word_ids,
+        created_at=now_utc,
+    )
+    session.add(floor_question)
+    session.commit()
+    session.refresh(floor_question)
+    return floor_question
 
 
 async def ensure_daily_question(
@@ -372,20 +464,67 @@ async def ensure_daily_question(
             )
             return None, None
 
-        content = await generate_question_content(
-            user_id=0,
-            q_type=q_type,
-            word_texts=[word.text for word in words],
-        )
-        if not content:
-            logger.error(
-                "每日挑战题目生成失败：内容为空，day=%s floor=%s question_index=%s type=%s",
+        word_texts = [word.text for word in words]
+        try:
+            content = await asyncio.wait_for(
+                generate_question_content(
+                    user_id=0,
+                    q_type=q_type,
+                    word_texts=word_texts,
+                    max_retries=DAILY_QUESTION_GENERATION_MAX_RETRIES,
+                ),
+                timeout=DAILY_QUESTION_GENERATION_TIMEOUT_SECONDS,
+            )
+        except TimeoutError:
+            logger.warning(
+                "每日挑战题目生成超时：day=%s floor=%s question_index=%s type=%s timeout=%ss",
+                day.day_key,
+                floor,
+                question_index,
+                q_type,
+                DAILY_QUESTION_GENERATION_TIMEOUT_SECONDS,
+            )
+            content = None
+        except Exception:
+            logger.exception(
+                "每日挑战题目生成异常：day=%s floor=%s question_index=%s type=%s",
                 day.day_key,
                 floor,
                 question_index,
                 q_type,
             )
-            return None, None
+            content = None
+
+        if not content:
+            fallback_question, fallback_word_ids = _select_daily_fallback_question(session, day.id, q_type)
+            if fallback_question is None:
+                logger.error(
+                    "每日挑战题目生成失败且无兜底题：day=%s floor=%s question_index=%s type=%s",
+                    day.day_key,
+                    floor,
+                    question_index,
+                    q_type,
+                )
+                return None, None
+
+            floor_question = _save_daily_existing_question(
+                session=session,
+                day=day,
+                floor=floor,
+                question_index=question_index,
+                question=fallback_question,
+                word_ids=fallback_word_ids,
+                now_utc=_now_utc(),
+            )
+            logger.warning(
+                "每日挑战使用历史题兜底：day=%s floor=%s question_index=%s type=%s question_id=%s",
+                day.day_key,
+                floor,
+                question_index,
+                q_type,
+                fallback_question.id,
+            )
+            return floor_question, fallback_question
 
         current_time = _now_utc()
         floor_question, question = _save_daily_generated_question(
@@ -434,6 +573,15 @@ async def prewarm_daily_questions(
             positions = _build_daily_prewarm_positions(floor, question_index, enemy_hp, prewarm_count)
             if not positions:
                 return
+            logger.info(
+                "每日挑战共享预热开始：day=%s floor=%s question_index=%s enemy_hp=%s count=%s positions=%s",
+                day.day_key,
+                floor,
+                question_index,
+                enemy_hp,
+                prewarm_count,
+                positions,
+            )
 
             for target_floor, target_question_index in positions:
                 try:
@@ -461,13 +609,47 @@ def schedule_daily_question_prewarm(
     if prewarm_count <= 0:
         return
 
+    task_key = (day_id, floor, question_index, enemy_hp)
+    if task_key in _scheduled_prewarm_keys:
+        return
+
+    async def _run_prewarm() -> None:
+        try:
+            await asyncio.wait_for(
+                prewarm_daily_questions(
+                    day_id=day_id,
+                    floor=floor,
+                    question_index=question_index,
+                    enemy_hp=enemy_hp,
+                    count=prewarm_count,
+                ),
+                timeout=DAILY_PREWARM_TASK_TIMEOUT_SECONDS,
+            )
+        except TimeoutError:
+            logger.warning(
+                "每日挑战共享预热超时：day_id=%s floor=%s question_index=%s timeout=%ss",
+                day_id,
+                floor,
+                question_index,
+                DAILY_PREWARM_TASK_TIMEOUT_SECONDS,
+            )
+        except asyncio.CancelledError:
+            logger.warning(
+                "每日挑战共享预热取消：day_id=%s floor=%s question_index=%s",
+                day_id,
+                floor,
+                question_index,
+            )
+            raise
+        finally:
+            _scheduled_prewarm_keys.discard(task_key)
+
+    _scheduled_prewarm_keys.add(task_key)
     asyncio.create_task(
-        prewarm_daily_questions(
-            day_id=day_id,
-            floor=floor,
-            question_index=question_index,
-            enemy_hp=enemy_hp,
-            count=prewarm_count,
+        _run_prewarm(),
+        name=(
+            "daily-prewarm:"
+            f"{day_id}:{floor}:{question_index}:{enemy_hp}"
         )
     )
 
@@ -610,8 +792,12 @@ def get_daily_overview(
 ) -> DailyChallengeOverviewRead:
     current_time = now_utc or _now_utc()
     day = get_or_create_daily_day(session, current_time)
-    active_run = get_active_daily_run(session, user.id)
     today_run = get_daily_run_for_day(session, day.id, user.id)
+    active_run = (
+        today_run
+        if today_run is not None and today_run.status == DailyChallengeRunStatus.IN_PROGRESS
+        else None
+    )
     leaderboard, current_user_entry = get_daily_leaderboard(
         session,
         day.id,
@@ -635,7 +821,10 @@ def get_daily_overview(
         day_key=day.day_key,
         opens_at=day.opens_at,
         closes_at=day.closes_at,
-        seconds_until_reset=max(0, int((day.closes_at - current_time).total_seconds())),
+        seconds_until_reset=max(
+            0,
+            int((_ensure_utc_aware(day.closes_at) - _ensure_utc_aware(current_time)).total_seconds()),
+        ),
         user_status=user_status,
         today_best_floor=today_run.best_floor if today_run else None,
         active_run=active_state,
