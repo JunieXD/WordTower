@@ -4,10 +4,19 @@ from sqlmodel import Session, select
 from app.models import User, UserCreate, UserQuestionRecord, Question
 from app.utils.security import hash_password
 from datetime import datetime, timezone
+from app.utils.logger import get_logger
+
+logger = get_logger(__name__)
+
+def get_users_by_username(session: Session, username: str) -> list[User]:
+    statement = select(User).where(User.username == username).order_by(User.id.asc())
+    return list(session.exec(statement).all())
 
 def get_user_by_username(session: Session, username: str) -> User | None:
-    statement = select(User).where(User.username == username)
-    return session.exec(statement).one_or_none()
+    users = get_users_by_username(session, username)
+    if len(users) > 1:
+        logger.error("数据库异常：检测到重复用户名，用户名=%s 数量=%s", username, len(users))
+    return users[0] if users else None
 
 def create_user(session: Session, user_in: UserCreate) -> None:
     if get_user_by_username(session, user_in.username):

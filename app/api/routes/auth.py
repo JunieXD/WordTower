@@ -1,12 +1,13 @@
 from fastapi import APIRouter, Depends
 from fastapi.encoders import jsonable_encoder
 from app.db.database import SessionDep
-from app.db.user import get_user_by_username, create_user, set_user_last_login
+from app.db.user import get_user_by_username, get_users_by_username, create_user
 from app.api.api_responses import success_response, created_response, not_found_response, conflict_response
 from app.models.user import UserCreate, UserLogin, User, UserRead
 from app.utils.security import verify_password, encode_token
 from app.api.dependencies import get_current_user
 from app.utils.logger import get_logger
+from datetime import datetime, timezone
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 logger = get_logger(__name__)
@@ -22,15 +23,28 @@ async def register(session: SessionDep, user_in: UserCreate):
 
 @router.post("/login")
 async def login(session: SessionDep, user_in: UserLogin):
-    user = get_user_by_username(session, user_in.username)
-    if user is None:
+    users = get_users_by_username(session, user_in.username)
+    if not users:
         logger.warning("登录失败：用户不存在，用户名=%s", user_in.username)
         return not_found_response(message="用户不存在")
-    if not verify_password(user_in.password, user.password_hash):
+
+    if len(users) > 1:
+        logger.error("登录检测到重复用户名：用户名=%s 数量=%s", user_in.username, len(users))
+
+    user = None
+    for candidate in users:
+        if verify_password(user_in.password, candidate.password_hash):
+            user = candidate
+            break
+
+    if user is None:
         logger.warning("登录失败：密码错误，用户名=%s", user_in.username)
         return not_found_response(message="用户名或密码错误")
+
     token = encode_token(user)
-    set_user_last_login(session, user.username)
+    user.last_login = datetime.now(timezone.utc)
+    session.add(user)
+    session.commit()
     logger.info("登录成功：用户ID=%s 用户名=%s", user.id, user.username)
     return success_response(message="登录成功", cookie=token)
 
