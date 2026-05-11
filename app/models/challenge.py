@@ -2,7 +2,7 @@ from sqlmodel import Field, SQLModel
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional
-from sqlalchemy import Column, String
+from sqlalchemy import Column, Index, String
 
 
 class ChallengeStatus(str, Enum):
@@ -13,6 +13,10 @@ class ChallengeStatus(str, Enum):
 
 class Challenge(SQLModel, table=True):
     __tablename__ = "challenge"
+    __table_args__ = (
+        Index("ix_challenge_user_status_start_time", "user_id", "status", "start_time"),
+        Index("ix_challenge_user_start_time", "user_id", "start_time"),
+    )
     
     id: Optional[int] = Field(default=None, primary_key=True)
     user_id: int = Field(foreign_key="user.id")

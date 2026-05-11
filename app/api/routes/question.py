@@ -37,6 +37,7 @@ import asyncio
 import json
 from app.utils.logger import get_logger
 from app.utils.question_payload import ensure_story_target_forms_in_payload, serialize_question_for_client
+from app.utils.config import settings
 
 router = APIRouter(prefix="/api/question", tags=["question"])
 logger = get_logger(__name__)
@@ -149,9 +150,10 @@ async def get_question(
             return success_response(data=ensure_story_target_forms_in_payload(queue_question_data))
 
         request_context = QuestionGenerationRequestContext()
+        generation_batch_size = max(1, min(int(settings.QUESTION_GET_GENERATION_BATCH_SIZE), 5))
         tasks = [
             asyncio.create_task(generate_single_question(user_in.id, request_context=request_context))
-            for _ in range(5)
+            for _ in range(generation_batch_size)
         ]
     
         question_to_return = None

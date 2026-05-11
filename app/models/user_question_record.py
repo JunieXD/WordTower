@@ -1,11 +1,15 @@
 from sqlmodel import Field, SQLModel
 from datetime import datetime, timezone
 from typing import Any, Optional
-from sqlalchemy import JSON, Column
+from sqlalchemy import JSON, Column, Index
 
 
 class UserQuestionRecord(SQLModel, table=True):
     __tablename__ = "user_question_record"
+    __table_args__ = (
+        Index("ix_user_question_record_user_question_time", "user_id", "question_id", "time"),
+        Index("ix_user_question_record_user_time", "user_id", "time"),
+    )
     
     id: Optional[int] = Field(default=None, primary_key=True)
     user_id: int = Field(foreign_key="user.id")
