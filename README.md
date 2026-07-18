@@ -53,14 +53,8 @@ The deployment user must have Docker Compose v2 access and write permission to `
 
 1. Create the deployment directory and place `.env.example` there as `.env`.
 2. Replace every placeholder in `.env`, especially `POSTGRES_PASSWORD`, `SECRET_KEY` and `ARK_API_KEY`. Use a URL-safe PostgreSQL password and set `COOKIE_SECURE=true` for HTTPS.
-3. If GHCR packages are private, log in once with a token that has `read:packages`:
-
-   ```bash
-   docker login ghcr.io
-   ```
-
-4. Configure the OpenResty location block and point DNS to the server.
-5. Configure the GitHub production environment described below, then push `main`.
+3. Configure the OpenResty location block and point DNS to the server.
+4. Configure the GitHub production environment described below, then push `main`. The workflow logs the server into GHCR with its temporary GitHub token during each deployment.
 
 Do not commit the production `.env` file.
 
@@ -99,7 +93,7 @@ Restore a dump on the destination server before switching traffic:
 To move to a new server:
 
 1. Install Docker Compose v2 and OpenResty/1Panel.
-2. Recreate the deployment directory and `.env`, then log in to GHCR if required.
+2. Recreate the deployment directory and `.env`.
 3. Start PostgreSQL and restore the latest SQL dump before opening traffic.
 4. Copy the OpenResty location configuration and update DNS.
 5. Update `DEPLOY_HOST` and `DEPLOY_KNOWN_HOSTS` in GitHub, then rerun the latest workflow or push `main`.

@@ -116,6 +116,13 @@ jobs:
           scp -P "$DEPLOY_PORT" deploy/server/backup.sh "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/deploy/server/backup.sh"
           scp -P "$DEPLOY_PORT" deploy/server/restore.sh "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/deploy/server/restore.sh"
           scp -P "$DEPLOY_PORT" deploy/openresty/wordtower.location.conf.example "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/deploy/openresty/wordtower.location.conf.example"
+      - name: Authenticate server to GHCR
+        shell: bash
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          printf '%s' "$GHCR_TOKEN" | ssh -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" \
+            "docker login ghcr.io --username '${{ github.actor }}' --password-stdin"
       - name: Deploy release
         shell: bash
         run: |
