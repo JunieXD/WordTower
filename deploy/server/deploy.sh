@@ -30,6 +30,11 @@ fi
 install -d -m 0700 -o 70 -g 70 "$BASE_DIR/data/postgres"
 mkdir -p "$BASE_DIR/data/redis" "$BASE_DIR/backups"
 
+CRON_FILE="$BASE_DIR/deploy/server/wordtower-backup.cron"
+if [[ "$(id -u)" == "0" && -f "$CRON_FILE" ]]; then
+  install -m 0644 "$CRON_FILE" /etc/cron.d/wordtower-backup
+fi
+
 read_env() {
   local key="$1"
   sed -n "s/^${key}=//p" "$ENV_FILE" | tail -n 1

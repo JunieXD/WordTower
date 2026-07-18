@@ -1,0 +1,5 @@
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+CRON_TZ=Asia/Shanghai
+
+15 3 * * * root flock -n /run/wordtower-backup.lock /opt/1panel/www/sites/WordTower/deploy/server/backup.sh >> /opt/1panel/www/sites/WordTower/backups/backup.log 2>&1
