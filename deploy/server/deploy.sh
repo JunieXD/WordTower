@@ -27,7 +27,8 @@ if ! command -v docker >/dev/null 2>&1 || ! docker compose version >/dev/null 2>
   exit 2
 fi
 
-mkdir -p "$BASE_DIR/data/postgres" "$BASE_DIR/data/redis" "$BASE_DIR/backups"
+install -d -m 0700 -o 70 -g 70 "$BASE_DIR/data/postgres"
+mkdir -p "$BASE_DIR/data/redis" "$BASE_DIR/backups"
 
 read_env() {
   local key="$1"
