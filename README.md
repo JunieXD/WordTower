@@ -49,7 +49,7 @@ Copy the location block from `deploy/openresty/wordtower.location.conf.example` 
 
 ## First server setup
 
-The deployment user must have Docker Compose v2 access and write permission to `/opt/wordtower` (or the path configured in the GitHub `DEPLOY_PATH` variable).
+The deployment user must have Docker Compose v2 access and write permission to `/opt/1panel/www/sites/WordTower` (or the path configured in the GitHub `DEPLOY_PATH` variable). PostgreSQL, Redis and SQL backups are stored below this directory so they can be included in a 1Panel site snapshot.
 
 1. Create the deployment directory and place `.env.example` there as `.env`.
 2. Replace every placeholder in `.env`, especially `POSTGRES_PASSWORD`, `SECRET_KEY` and `ARK_API_KEY`. Use a URL-safe PostgreSQL password and set `COOKIE_SECURE=true` for HTTPS.
@@ -75,7 +75,7 @@ Create a GitHub environment named `production` and configure:
 | Secret | `DEPLOY_USER` | SSH deployment user |
 | Secret | `DEPLOY_SSH_KEY` | Private Ed25519 SSH key |
 | Secret | `DEPLOY_KNOWN_HOSTS` | Output of `ssh-keyscan -p <port> -H <host>` |
-| Variable | `DEPLOY_PATH` | Optional; defaults to `/opt/wordtower` |
+| Variable | `DEPLOY_PATH` | Optional; defaults to `/opt/1panel/www/sites/WordTower` |
 
 Every push to `main` runs frontend and backend tests, builds both images with the commit SHA, pushes them to GHCR, uploads the deployment files and executes `deploy/server/deploy.sh`. The same release can be started manually with `workflow_dispatch`. A failed health check restores the previous application image tag.
 
@@ -87,7 +87,7 @@ Run database backups from the deployment directory:
 ./deploy/server/backup.sh
 ```
 
-Copy the resulting `backups/*.sql.gz` file and the production `.env` to storage outside the server. A Docker volume is not a backup.
+Copy the resulting `backups/*.sql.gz` file and the production `.env` to storage outside the server. The bind-mounted `data/` directory is included in the site tree, but an online filesystem snapshot is not a substitute for a consistent PostgreSQL dump.
 
 Restore a dump on the destination server before switching traffic:
 

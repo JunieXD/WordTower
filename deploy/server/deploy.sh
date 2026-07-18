@@ -27,6 +27,8 @@ if ! command -v docker >/dev/null 2>&1 || ! docker compose version >/dev/null 2>
   exit 2
 fi
 
+mkdir -p "$BASE_DIR/data/postgres" "$BASE_DIR/data/redis" "$BASE_DIR/backups"
+
 read_env() {
   local key="$1"
   sed -n "s/^${key}=//p" "$ENV_FILE" | tail -n 1

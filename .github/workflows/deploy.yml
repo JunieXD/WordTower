@@ -88,7 +88,7 @@ jobs:
       DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
       DEPLOY_PORT: ${{ secrets.DEPLOY_PORT || '22' }}
       DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-      DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/opt/wordtower' }}
+      DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/opt/1panel/www/sites/WordTower' }}
     steps:
       - uses: actions/checkout@v4
       - name: Normalize image namespace
