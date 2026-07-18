@@ -1,0 +1,7 @@
+.env
+.env.*
+!.env.example
+*.bak
+.DS_Store
+backups/
+.uv-cache/

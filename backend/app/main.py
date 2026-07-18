@@ -1,6 +1,6 @@
 import time
 from fastapi import FastAPI, Request
-from app.api.routes import auth
+from app.api.routes import auth, health
 from app.api.routes import library, word, upgrade, question, combat, social, history, daily_challenge
 from fastapi.middleware.cors import CORSMiddleware
 from app.utils.cors import origins
@@ -86,6 +86,7 @@ async def on_shutdown():
 
 
 app.include_router(auth.router)
+app.include_router(health.router)
 app.include_router(library.router)
 app.include_router(upgrade.router)
 app.include_router(word.router)

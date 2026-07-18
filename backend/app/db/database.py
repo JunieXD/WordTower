@@ -4,7 +4,12 @@ from fastapi import Depends
 from typing import Annotated
 from app.models import *
 
-engine = create_engine(settings.DATABASE_URL, pool_size=20, max_overflow=40)
+engine = create_engine(
+    settings.DATABASE_URL,
+    pool_size=settings.DB_POOL_SIZE,
+    max_overflow=settings.DB_MAX_OVERFLOW,
+    pool_pre_ping=True,
+)
 
 def get_session():
     with Session(engine) as session:

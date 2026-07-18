@@ -1,6 +1,7 @@
 from fastapi.responses import JSONResponse
 from typing import Any, Optional, Dict, List
 from pydantic import BaseModel
+from app.utils.config import settings
 
 
 class APIResponseModel(BaseModel):
@@ -40,7 +41,7 @@ def success_response(data: Any = None, message: str = "操作成功", cookie: Op
             value=cookie,
             max_age=60 * 60 * 24,
             httponly=True,
-            # secure=True,
+            secure=settings.COOKIE_SECURE,
             samesite="lax",
             path="/"
         )

@@ -2,10 +2,8 @@ from __future__ import annotations
 
 import math
 import random
-import threading
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from pathlib import Path
 
 from sqlmodel import Session, select
 
@@ -46,77 +44,6 @@ def _difficulty_prior(difficulty: int | None) -> float:
     return _D2P[int(idx) - 1]
 
 
-class _GruHlrPredictor:
-    def __init__(self) -> None:
-        self._lock = threading.Lock()
-        self._loaded = False
-        self._available = False
-        self._torch = None
-        self._model = None
-        self._warned = False
-
-    def _warn_once(self, message: str, *args: object) -> None:
-        if self._warned:
-            return
-        self._warned = True
-        logger.warning(message, *args)
-
-    def _ensure_loaded(self) -> None:
-        if self._loaded:
-            return
-        with self._lock:
-            if self._loaded:
-                return
-            self._loaded = True
-            if not settings.SRS_ENABLED:
-                return
-
-            model_path = Path(settings.SRS_MODEL_PATH)
-            if not model_path.exists():
-                self._warn_once("SRS model file not found, fallback to heuristic scheduler: %s", str(model_path))
-                return
-
-            try:
-                import torch  # type: ignore
-            except Exception as exc:  # pragma: no cover
-                self._warn_once("SRS torch import failed, fallback to heuristic scheduler: %s", str(exc))
-                return
-
-            try:
-                model = torch.jit.load(str(model_path), map_location="cpu")
-                model.eval()
-                self._torch = torch
-                self._model = model
-                self._available = True
-                logger.info("SRS model loaded: %s", str(model_path))
-            except Exception as exc:  # pragma: no cover
-                self._warn_once("SRS model load failed, fallback to heuristic scheduler: %s", str(exc))
-
-    def is_available(self) -> bool:
-        self._ensure_loaded()
-        return self._available
-
-    def predict_halflife(self, r_history: list[int], t_history: list[float], p_history: list[float]) -> float:
-        self._ensure_loaded()
-        if not self._available or not r_history:
-            return _fallback_halflife(r_history, t_history)
-
-        torch = self._torch
-        model = self._model
-        feature_num = 3
-        sample_tensor = torch.zeros(len(r_history), 1, feature_num, dtype=torch.float32)
-        for idx, response in enumerate(r_history):
-            sample_tensor[idx][0][0] = float(int(response))
-            sample_tensor[idx][0][1] = float(t_history[idx])
-            sample_tensor[idx][0][2] = float(p_history[idx])
-
-        hidden = torch.zeros(1, 1, int(settings.SRS_MODEL_HIDDEN))
-        with torch.no_grad():
-            output, _ = model.forward(sample_tensor, hidden)
-            halflife = float(output[0][0].item())
-        return max(halflife, 0.1)
-
-
 def _fallback_halflife(r_history: list[int], t_history: list[float]) -> float:
     if not r_history:
         return 1.0
@@ -125,9 +52,6 @@ def _fallback_halflife(r_history: list[int], t_history: list[float]) -> float:
     # Lightweight fallback when model is unavailable.
     base = 0.8 + 1.2 * correct_ratio + 0.5 * math.log1p(len(r_history))
     return max(base + 0.3 * mean_interval, 0.2)
-
-
-_PREDICTOR = _GruHlrPredictor()
 
 
 @dataclass
@@ -186,8 +110,8 @@ def _calc_schedule_for_word(word: Word, events: list[tuple[datetime, bool]], now
             last_review_at=None,
         )
 
-    r_history, t_history, p_history = _build_model_inputs(events, word.difficulty)
-    halflife_hat = _PREDICTOR.predict_halflife(r_history, t_history, p_history)
+    r_history, t_history, _ = _build_model_inputs(events, word.difficulty)
+    halflife_hat = _fallback_halflife(r_history, t_history)
     elapsed_days = _interval_days(events[-1][0], now)
 
     p_now = math.exp(math.log(0.5) * elapsed_days / max(halflife_hat, 0.1))
@@ -256,6 +180,10 @@ def _load_word_events(session: Session, user: User, word_ids: list[int]) -> dict
 def rank_words_with_srs_priority(session: Session, user: User, all_words: list[Word]) -> list[Word]:
     if not all_words:
         return []
+    if not settings.SRS_ENABLED:
+        shuffled_words = list(all_words)
+        random.shuffle(shuffled_words)
+        return shuffled_words
     now = datetime.now(timezone.utc)
     word_ids = [word.id for word in all_words if word.id is not None]
     events_by_word = _load_word_events(session, user, word_ids)
@@ -278,7 +206,7 @@ def rank_words_with_srs_priority(session: Session, user: User, all_words: list[W
         len(buckets.due_words),
         len(buckets.new_words),
         len(buckets.review_not_due),
-        "gru-hlr" if _PREDICTOR.is_available() else "fallback",
+        "heuristic",
     )
     return selected_words
 
@@ -297,7 +225,7 @@ def estimate_word_next_review_days(session: Session, user: User, word: Word) -> 
     Estimate the next suggested review interval (days) for one word.
     This is used by the combat answer API to display post-answer review hints.
     """
-    if word.id is None:
+    if not settings.SRS_ENABLED or word.id is None:
         return 0.0
     now = datetime.now(timezone.utc)
     events_by_word = _load_word_events(session, user, [int(word.id)])

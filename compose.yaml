@@ -1,0 +1,93 @@
+name: wordtower
+
+x-backend-common: &backend-common
+  image: ${IMAGE_REGISTRY:-ghcr.io}/${IMAGE_NAMESPACE:-local}/wordtower-backend:${IMAGE_TAG:-latest}
+  build:
+    context: ./backend
+  env_file:
+    - .env
+  environment:
+    DATABASE_URL: postgresql://${POSTGRES_USER:-wordtower}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-wordtower}
+    REDIS_URL: redis://redis:6379/0
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+  networks:
+    - app
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-wordtower}
+      POSTGRES_USER: ${POSTGRES_USER:-wordtower}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - app
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - app
+
+  migrate:
+    <<: *backend-common
+    restart: "no"
+    command: ["alembic", "-c", "app/alembic.ini", "upgrade", "head"]
+
+  backend:
+    <<: *backend-common
+    restart: unless-stopped
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health/ready', timeout=5)"]
+      interval: 10s
+      timeout: 6s
+      retries: 12
+      start_period: 10s
+
+  frontend:
+    image: ${IMAGE_REGISTRY:-ghcr.io}/${IMAGE_NAMESPACE:-local}/wordtower-frontend:${IMAGE_TAG:-latest}
+    build:
+      context: ./frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${APP_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8080/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+    networks:
+      - app
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  app:
+    driver: bridge

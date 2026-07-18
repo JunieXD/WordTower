@@ -13,6 +13,7 @@ DEFAULT_LOG_DIR = PROJECT_ROOT / "logs"
 DEFAULT_LOG_LEVEL = logging.INFO
 DEFAULT_MAX_LOG_FILES = 7
 DEBUG_SWITCH_ENV = "WORDTOWER_DEBUG"
+STDOUT_SWITCH_ENV = "LOG_TO_STDOUT"
 
 _user_label_var: ContextVar[str] = ContextVar("user_label", default="未登录")
 
@@ -124,6 +125,7 @@ def setup_logging(
         return
 
     debug_enabled = is_debug_logging_enabled()
+    stdout_enabled = debug_enabled or _env_to_bool(os.getenv(STDOUT_SWITCH_ENV), default=False)
     effective_level = logging.DEBUG if debug_enabled else level
 
     root_logger.setLevel(effective_level)
@@ -143,14 +145,14 @@ def setup_logging(
 
     root_logger.addHandler(file_handler)
 
-    if debug_enabled:
+    if stdout_enabled:
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setLevel(logging.DEBUG)
         console_handler.setFormatter(formatter)
         console_handler.addFilter(context_filter)
         root_logger.addHandler(console_handler)
 
-    # debug 开关关闭时，uvicorn 日志只写文件；开启时同时在终端显示。
+    # 容器通过 LOG_TO_STDOUT 输出日志；本地仍可只保留文件日志。
     for logger_name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
         uvicorn_logger = logging.getLogger(logger_name)
         uvicorn_logger.handlers.clear()
@@ -165,7 +167,7 @@ def setup_logging(
         "日志初始化完成：debug=%s 级别=%s 终端输出=%s 开关=%s",
         debug_enabled,
         logging.getLevelName(effective_level),
-        debug_enabled,
+        stdout_enabled,
         DEBUG_SWITCH_ENV,
     )
 

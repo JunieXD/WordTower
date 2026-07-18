@@ -165,13 +165,13 @@ class Settings:
     # ==================== 战斗 / 题目 ====================
     QUESTION_TYPES = ["context_guess", "cloze_test", "keyword_translation"]
     QUESTION_GET_GENERATION_BATCH_SIZE: int = _parse_int(os.getenv("QUESTION_GET_GENERATION_BATCH_SIZE"), 5)
-    SRS_ENABLED: bool = _parse_bool(os.getenv("SRS_ENABLED"), True)
+    SRS_ENABLED: bool = _parse_bool(os.getenv("SRS_ENABLED"), False)
     SRS_TARGET_RECALL: float = _parse_float(os.getenv("SRS_TARGET_RECALL"), 0.8)
-    SRS_MODEL_HIDDEN: int = _parse_int(os.getenv("SRS_MODEL_HIDDEN"), 16)
-    SRS_MODEL_PATH: str = os.getenv(
-        "SRS_MODEL_PATH",
-        str((PROJECT_ROOT / "app" / "scripts" / "model.pt").resolve()),
-    )
+
+    # ==================== HTTP / 运行环境 ====================
+    COOKIE_SECURE: bool = _parse_bool(os.getenv("COOKIE_SECURE"), False)
+    DB_POOL_SIZE: int = _parse_int(os.getenv("DB_POOL_SIZE"), 5)
+    DB_MAX_OVERFLOW: int = _parse_int(os.getenv("DB_MAX_OVERFLOW"), 10)
 
     # ==================== 升级 ====================
     UPGRADE_HP_COINS: int = _parse_int(os.getenv("UPGRADE_HP_COINS"), 100)
