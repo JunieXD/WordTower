@@ -115,7 +115,6 @@ jobs:
           scp -P "$DEPLOY_PORT" deploy/server/deploy.sh "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/deploy/server/deploy.sh"
           scp -P "$DEPLOY_PORT" deploy/server/backup.sh "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/deploy/server/backup.sh"
           scp -P "$DEPLOY_PORT" deploy/server/restore.sh "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/deploy/server/restore.sh"
-          scp -P "$DEPLOY_PORT" deploy/server/wordtower-backup.cron "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/deploy/server/wordtower-backup.cron"
           scp -P "$DEPLOY_PORT" deploy/openresty/wordtower.location.conf.example "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/deploy/openresty/wordtower.location.conf.example"
       - name: Authenticate server to GHCR
         shell: bash
