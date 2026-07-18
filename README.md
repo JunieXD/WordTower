@@ -76,8 +76,9 @@ Create a GitHub environment named `production` and configure:
 | Secret | `DEPLOY_SSH_KEY` | Private Ed25519 SSH key |
 | Secret | `DEPLOY_KNOWN_HOSTS` | Output of `ssh-keyscan -p <port> -H <host>` |
 | Variable | `DEPLOY_PATH` | Optional; defaults to `/opt/1panel/www/sites/WordTower` |
+| Variable | `DEPLOY_ENABLED` | Set to `true` only after the server and secrets are ready |
 
-Every push to `main` runs frontend and backend tests, builds both images with the commit SHA, pushes them to GHCR, uploads the deployment files and executes `deploy/server/deploy.sh`. The same release can be started manually with `workflow_dispatch`. A failed health check restores the previous application image tag.
+Every push to `main` runs frontend and backend tests and pushes both commit-SHA images to GHCR. When `DEPLOY_ENABLED=true`, it also uploads the deployment files and executes `deploy/server/deploy.sh`. The same release can be started manually with `workflow_dispatch`. A failed health check restores the previous application image tag.
 
 ## Backups and moving servers
 
