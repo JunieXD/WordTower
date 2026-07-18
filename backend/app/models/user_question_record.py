@@ -1,0 +1,21 @@
+from sqlmodel import Field, SQLModel
+from datetime import datetime, timezone
+from typing import Any, Optional
+from sqlalchemy import JSON, Column, Index
+
+
+class UserQuestionRecord(SQLModel, table=True):
+    __tablename__ = "user_question_record"
+    __table_args__ = (
+        Index("ix_user_question_record_user_question_time", "user_id", "question_id", "time"),
+        Index("ix_user_question_record_user_time", "user_id", "time"),
+    )
+    
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="user.id")
+    question_id: int = Field(foreign_key="question.id")
+    time: Optional[datetime] = Field(default_factory=lambda: datetime.now(timezone.utc))
+    correct: Optional[bool] = Field(default=None)
+    answer_detail: Optional[dict[str, Any]] = Field(default=None, sa_column=Column(JSON))
+    report: Optional[str] = Field(default=None)
+    rating: Optional[int] = Field(default=None)

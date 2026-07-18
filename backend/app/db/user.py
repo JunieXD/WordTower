@@ -1,0 +1,82 @@
+from typing import Any
+
+from sqlmodel import Session, select
+from app.models import User, UserCreate, UserQuestionRecord, Question
+from app.utils.security import hash_password
+from datetime import datetime, timezone
+from app.utils.logger import get_logger
+
+logger = get_logger(__name__)
+
+def get_users_by_username(session: Session, username: str) -> list[User]:
+    statement = select(User).where(User.username == username).order_by(User.id.asc())
+    return list(session.exec(statement).all())
+
+def get_user_by_username(session: Session, username: str) -> User | None:
+    users = get_users_by_username(session, username)
+    if len(users) > 1:
+        logger.error("数据库异常：检测到重复用户名，用户名=%s 数量=%s", username, len(users))
+    return users[0] if users else None
+
+def create_user(session: Session, user_in: UserCreate) -> None:
+    if get_user_by_username(session, user_in.username):
+        return None
+    
+    db_user = User(
+        username=user_in.username,
+        password_hash=hash_password(user_in.password)
+    )
+    session.add(db_user)
+    session.commit()
+
+def set_user_last_login(session: Session, username: str) -> None:
+    user = get_user_by_username(session, username)
+    if user:
+        user.last_login = datetime.now(timezone.utc)
+        session.commit()
+
+def user_question_answer(
+    session: Session,
+    user: User,
+    question: Question,
+    is_correct: bool,
+    answer_detail: dict[str, Any] | None = None,
+) -> UserQuestionRecord:
+    select_statement = (
+        select(UserQuestionRecord)
+        .where(UserQuestionRecord.user_id == user.id)
+        .where(UserQuestionRecord.question_id == question.id)
+        .order_by(UserQuestionRecord.time, UserQuestionRecord.id)
+    )
+    existing_record = session.exec(select_statement).first()
+    if existing_record is not None:
+        return existing_record
+
+    user_question_record = UserQuestionRecord(
+        user_id=user.id,
+        question_id=question.id,
+        correct=is_correct,
+        answer_detail=answer_detail,
+    )
+    session.add(user_question_record)
+    session.commit()
+    session.refresh(user_question_record)
+    return user_question_record
+
+def user_question_report(session: Session, user: User, question: Question, report: str) -> None:
+    select_statement = select(UserQuestionRecord).where(UserQuestionRecord.user_id == user.id).where(UserQuestionRecord.question_id == question.id).order_by(UserQuestionRecord.time)
+    user_question_record = session.exec(select_statement).first()
+    if user_question_record:
+        user_question_record.report = report
+        session.commit()
+        
+def user_question_rating(session: Session, user: User, question: Question, rating: int) -> None:
+    select_statement = select(UserQuestionRecord).where(UserQuestionRecord.user_id == user.id).where(UserQuestionRecord.question_id == question.id).order_by(UserQuestionRecord.time)
+    user_question_record = session.exec(select_statement).first()
+    if user_question_record:
+        user_question_record.rating = rating
+        session.commit()
+    
+def update_user_max_floor(session: Session, user: User, max_floor: int) -> None:
+    user.max_floor = max(user.max_floor, max_floor)
+    session.commit()
