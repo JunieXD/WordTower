@@ -27,8 +27,7 @@ if ! command -v docker >/dev/null 2>&1 || ! docker compose version >/dev/null 2>
   exit 2
 fi
 
-install -d -m 0700 -o 70 -g 70 "$BASE_DIR/data/postgres"
-mkdir -p "$BASE_DIR/data/redis" "$BASE_DIR/backups"
+install -d -m 0700 "$BASE_DIR/backups"
 
 read_env() {
   local key="$1"
@@ -66,11 +65,15 @@ trap rollback ERR
 write_env IMAGE_TAG "$NEW_TAG"
 write_env IMAGE_NAMESPACE "$NEW_NAMESPACE"
 
+INFRA_NETWORK="$(read_env INFRA_NETWORK)"
+INFRA_NETWORK="${INFRA_NETWORK:-1panel-network}"
+if ! docker network inspect "$INFRA_NETWORK" >/dev/null 2>&1; then
+  echo "[deploy] missing external Docker network: $INFRA_NETWORK"
+  false
+fi
+
 echo "[deploy] pulling release $NEW_TAG"
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" pull backend frontend migrate
-
-echo "[deploy] starting infrastructure"
-docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d postgres redis
 
 echo "[deploy] applying database migrations"
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm migrate

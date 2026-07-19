@@ -7,48 +7,13 @@ x-backend-common: &backend-common
   env_file:
     - .env
   environment:
-    DATABASE_URL: postgresql://${POSTGRES_USER:-wordtower}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-wordtower}
-    REDIS_URL: redis://redis:6379/0
-  depends_on:
-    postgres:
-      condition: service_healthy
-    redis:
-      condition: service_healthy
+    DATABASE_URL: postgresql://${POSTGRES_USER:-wordtower}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@${POSTGRES_HOST:-postgresql}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-wordtower}
+    REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
   networks:
     - app
+    - infrastructure
 
 services:
-  postgres:
-    image: postgres:18-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-wordtower}
-      POSTGRES_USER: ${POSTGRES_USER:-wordtower}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
-    volumes:
-      - ./data/postgres:/var/lib/postgresql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
-      interval: 5s
-      timeout: 5s
-      retries: 20
-    networks:
-      - app
-
-  redis:
-    image: redis:7-alpine
-    restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes"]
-    volumes:
-      - ./data/redis:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 20
-    networks:
-      - app
-
   migrate:
     <<: *backend-common
     restart: "no"
@@ -87,3 +52,6 @@ services:
 networks:
   app:
     driver: bridge
+  infrastructure:
+    external: true
+    name: ${INFRA_NETWORK:-1panel-network}

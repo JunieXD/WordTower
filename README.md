@@ -31,30 +31,24 @@ npm ci
 npm run dev
 ```
 
-For a production-like local stack:
-
-```bash
-cp .env.example .env
-# Replace POSTGRES_PASSWORD and SECRET_KEY before starting.
-docker compose up --build
-```
-
-The application is available at `http://127.0.0.1:8080`. SRS is disabled by default and the backend has no PyTorch dependency.
+The production Compose file expects externally managed PostgreSQL and Redis services. To run it outside 1Panel, provide an external Docker network and reachable `postgresql` and `redis` hosts in `.env`. The application is then available at `http://127.0.0.1:8080`. SRS is disabled by default and the backend has no PyTorch dependency.
 
 ## Production topology
 
-The host OpenResty instance terminates HTTPS and proxies the site to `127.0.0.1:8080`. The Compose frontend is also based on OpenResty; it serves the Vue assets and sends `/api/*` to FastAPI. Backend, PostgreSQL and Redis do not publish host ports.
+The host OpenResty instance terminates HTTPS and proxies the site to `127.0.0.1:8080`. The Compose frontend is also based on OpenResty; it serves the Vue assets and sends `/api/*` to FastAPI. The backend and one-shot migration container join both the private application network and 1Panel's external `1panel-network`. They reach the 1Panel-managed services through the stable Docker aliases `postgresql` and `redis`; WordTower does not run its own database or Redis containers.
 
 Copy the location block from `deploy/openresty/wordtower.location.conf.example` into the HTTPS site managed by OpenResty or 1Panel.
 
 ## First server setup
 
-The deployment user must have Docker Compose v2 access and write permission to `/opt/1panel/www/sites/WordTower` (or the path configured in the GitHub `DEPLOY_PATH` variable). PostgreSQL, Redis and SQL backups are stored below this directory so they can be included in a 1Panel site snapshot.
+The deployment user must have Docker Compose v2 access and write permission to `/opt/1panel/www/sites/WordTower` (or the path configured in the GitHub `DEPLOY_PATH` variable). PostgreSQL and Redis must already be managed by 1Panel and attached to `1panel-network` with the aliases `postgresql` and `redis`. Manual SQL backups are stored below the WordTower directory so they can be included in a site snapshot; the live database files remain under the 1Panel PostgreSQL application directory.
 
-1. Create the deployment directory and place `.env.example` there as `.env`.
-2. Replace every placeholder in `.env`, especially `POSTGRES_PASSWORD`, `SECRET_KEY` and `ARK_API_KEY`. Use a URL-safe PostgreSQL password and set `COOKIE_SECURE=true` for HTTPS.
-3. Configure the OpenResty location block and point DNS to the server.
-4. Configure the GitHub production environment described below, then push `main`. The workflow logs the server into GHCR with its temporary GitHub token during each deployment.
+1. Install PostgreSQL and Redis through 1Panel and confirm both services are on `1panel-network`.
+2. Create the deployment directory and place `.env.example` there as `.env`.
+3. Set the PostgreSQL host, port, database, user and URL-safe password. Set `REDIS_URL` to the 1Panel Redis alias and include its URL-encoded password when Redis authentication is enabled.
+4. Replace the remaining placeholders, especially `SECRET_KEY` and `ARK_API_KEY`, and set `COOKIE_SECURE=true` for HTTPS.
+5. Configure the OpenResty location block and point DNS to the server.
+6. Configure the GitHub production environment described below, then push `main`. The workflow logs the server into GHCR with its temporary GitHub token during each deployment.
 
 Do not commit the production `.env` file.
 
@@ -70,9 +64,8 @@ Create a GitHub environment named `production` and configure:
 | Secret | `DEPLOY_SSH_KEY` | Private Ed25519 SSH key |
 | Secret | `DEPLOY_KNOWN_HOSTS` | Output of `ssh-keyscan -p <port> -H <host>` |
 | Variable | `DEPLOY_PATH` | Optional; defaults to `/opt/1panel/www/sites/WordTower` |
-| Variable | `DEPLOY_ENABLED` | Set to `true` only after the server and secrets are ready |
 
-Every push to `main` runs frontend and backend tests and pushes both commit-SHA images to GHCR. When `DEPLOY_ENABLED=true`, it also uploads the deployment files and executes `deploy/server/deploy.sh`. The same release can be started manually with `workflow_dispatch`. A failed health check restores the previous application image tag.
+Every push to `main` runs frontend and backend tests and pushes both commit-SHA images to GHCR. It then uploads the deployment files and executes `deploy/server/deploy.sh`. The same release can be started manually with `workflow_dispatch`. A failed health check restores the previous application image tag.
 
 ## Backups and moving servers
 
@@ -82,7 +75,7 @@ Run database backups from the deployment directory:
 ./deploy/server/backup.sh
 ```
 
-Copy the resulting `backups/*.sql.gz` file and the production `.env` to storage outside the server. The bind-mounted `data/` directory is included in the site tree, but an online filesystem snapshot is not a substitute for a consistent PostgreSQL dump.
+Copy the resulting `backups/*.sql.gz` file and the production `.env` to storage outside the server. A WordTower site snapshot does not contain the live 1Panel PostgreSQL data directory, so create a manual SQL backup before a snapshot that must be independently restorable.
 
 Restore a dump on the destination server before switching traffic:
 
@@ -93,8 +86,8 @@ Restore a dump on the destination server before switching traffic:
 To move to a new server:
 
 1. Install Docker Compose v2 and OpenResty/1Panel.
-2. Recreate the deployment directory and `.env`.
-3. Start PostgreSQL and restore the latest SQL dump before opening traffic.
+2. Install PostgreSQL and Redis in 1Panel and recreate the database user recorded in `.env`.
+3. Recreate the deployment directory and `.env`, then restore the latest SQL dump before opening traffic.
 4. Copy the OpenResty location configuration and update DNS.
 5. Update `DEPLOY_HOST` and `DEPLOY_KNOWN_HOSTS` in GitHub, then rerun the latest workflow or push `main`.
 
