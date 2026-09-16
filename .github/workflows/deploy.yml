@@ -35,7 +35,7 @@ jobs:
   backend-test:
     runs-on: ubuntu-latest
     env:
-      ARK_API_KEY: test-key-not-used-by-unit-tests
+      ECNU_API_KEY: test-key-not-used-by-unit-tests
       SRS_ENABLED: "false"
     defaults:
       run:

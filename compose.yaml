@@ -7,6 +7,7 @@ x-backend-common: &backend-common
   env_file:
     - .env
   environment:
+    ECNU_API_KEY: ${ECNU_API_KEY:?Set ECNU_API_KEY in the server .env before deploying}
     DATABASE_URL: postgresql://${POSTGRES_USER:-wordtower}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@${POSTGRES_HOST:-postgresql}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-wordtower}
     REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
   networks:

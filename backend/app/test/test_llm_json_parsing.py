@@ -67,6 +67,7 @@ class LLMCallRetryTests(unittest.IsolatedAsyncioTestCase):
             SimpleNamespace(
                 choices=[
                     SimpleNamespace(
+                        finish_reason="stop",
                         message=SimpleNamespace(content='{"is_correct": false, "score": ')
                     )
                 ]
@@ -74,6 +75,7 @@ class LLMCallRetryTests(unittest.IsolatedAsyncioTestCase):
             SimpleNamespace(
                 choices=[
                     SimpleNamespace(
+                        finish_reason="stop",
                         message=SimpleNamespace(
                             content='{"is_correct": false, "score": 50, "feedback": "ok", "better_translation": "ok"}'
                         )

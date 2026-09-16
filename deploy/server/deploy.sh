@@ -29,6 +29,10 @@ fi
 
 install -d -m 0700 "$BASE_DIR/backups"
 
+# Validate required variables before changing release tags or running migrations.
+# Do not print the rendered config: it contains credentials.
+docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" config --quiet
+
 read_env() {
   local key="$1"
   sed -n "s/^${key}=//p" "$ENV_FILE" | tail -n 1

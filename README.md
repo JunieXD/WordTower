@@ -46,11 +46,62 @@ The deployment user must have Docker Compose v2 access and write permission to `
 1. Install PostgreSQL and Redis through 1Panel and confirm both services are on `1panel-network`.
 2. Create the deployment directory and place `.env.example` there as `.env`.
 3. Set the PostgreSQL host, port, database, user and URL-safe password. Set `REDIS_URL` to the 1Panel Redis alias and include its URL-encoded password when Redis authentication is enabled.
-4. Replace the remaining placeholders, especially `SECRET_KEY` and `ARK_API_KEY`, and set `COOKIE_SECURE=true` for HTTPS.
+4. Replace the remaining placeholders, especially `SECRET_KEY` and `ECNU_API_KEY`, and set `COOKIE_SECURE=true` for HTTPS.
 5. Configure the OpenResty location block and point DNS to the server.
 6. Configure the GitHub production environment described below, then push `main`. The workflow logs the server into GHCR with its temporary GitHub token during each deployment.
 
 Do not commit the production `.env` file.
+
+## ECNU LLM configuration and migration
+
+WordTower uses `ecnu-plus` through the university's OpenAI-compatible API.
+Set these values in `backend/.env` for local development, or the deployment
+directory's `.env` for Docker:
+
+```dotenv
+ECNU_API_KEY=<your-school-api-key>
+ECNU_API_BASE_URL=https://chat.ecnu.edu.cn/open/api/v1
+ECNU_API_MODEL_ID=ecnu-plus
+ECNU_MAX_CONCURRENCY=3
+```
+
+Only the key is required; the remaining values above are the defaults. Remove
+the old `ARK_API_KEY`, `ARK_API_BASE_URL` and `ARK_API_MODEL_ID` entries after
+migration. They are no longer read and there is no fallback to Volcengine.
+
+Update the server `.env` **before** deploying this release. CI/CD uploads
+`.env.example`, preserves `.env`, and checks required configuration before
+changing image tags or running migrations. If the key is missing, the release
+stops and the running application stays on its previous version. After fixing
+`.env`, rerun the failed GitHub Actions deployment. For an already deployed
+version, apply environment changes with `docker compose up -d --force-recreate backend`
+from the deployment directory; `docker compose restart` does not reload
+environment variables.
+
+The [model documentation](https://developer.ecnu.edu.cn/vitepress/llm/model.html)
+and [quota documentation](https://developer.ecnu.edu.cn/vitepress/llm/limit.html)
+currently specify at most three simultaneous requests per user and model.
+Generation, review, prewarming and grading share a process-wide queue, with a
+20-second queue wait limit and one SDK retry for transient failures (including
+429). Production explicitly runs one Uvicorn worker. Keep one backend replica;
+multiple replicas or workers require a shared distributed limiter. If the same
+school account is used by other applications, reduce `ECNU_MAX_CONCURRENCY`
+(allowed range: 1–3) to leave capacity for them. The quota is shared across that
+account, so this application cannot reserve capacity against external callers.
+
+All calls disable thinking, cap output at 2048 tokens, and request
+`response_format={"type":"json_object"}` using ECNU's
+[structured output API](https://developer.ecnu.edu.cn/vitepress/llm/api/structuredoutput.html).
+This enforces JSON syntax for the different generation stages; field and
+semantic checks remain in the existing question workflows. Empty, truncated
+or otherwise incomplete replies are rejected and retried once.
+
+Run a real API smoke test (consumes a small amount of the account's quota):
+
+```bash
+cd backend
+uv run python -m app.test.test_LLM
+```
 
 ## GitHub deployment settings
 

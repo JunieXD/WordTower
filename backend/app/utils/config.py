@@ -182,12 +182,15 @@ class Settings:
     UPGRADE_CRIT_RATE_VALUE: float = _parse_float(os.getenv("UPGRADE_CRIT_RATE_VALUE"), 0.01)
 
     # ==================== 大模型 ====================
-    ARK_API_KEY: str = os.getenv("ARK_API_KEY", "")
-    ARK_API_BASE_URL: str = os.getenv(
-        "ARK_API_BASE_URL",
-        "https://ark.cn-beijing.volces.com/api/v3",
+    ECNU_API_KEY: str = os.getenv("ECNU_API_KEY", "").strip()
+    ECNU_API_BASE_URL: str = os.getenv(
+        "ECNU_API_BASE_URL",
+        "https://chat.ecnu.edu.cn/open/api/v1",
     )
-    ARK_API_MODEL_ID: str = os.getenv("ARK_API_MODEL_ID", "doubao-seed-2-0-mini-260215")
+    ECNU_API_MODEL_ID: str = os.getenv("ECNU_API_MODEL_ID", "ecnu-plus")
+    ECNU_MAX_CONCURRENCY: int = _parse_int(os.getenv("ECNU_MAX_CONCURRENCY"), 3)
+    if not 1 <= ECNU_MAX_CONCURRENCY <= 3:
+        raise ValueError("ECNU_MAX_CONCURRENCY must be between 1 and 3")
 
     # ==================== 每日挑战：基础运行参数 ====================
     DAILY_CHALLENGE_RESET_HOUR: int = _parse_int(os.getenv("DAILY_CHALLENGE_RESET_HOUR"), 6)

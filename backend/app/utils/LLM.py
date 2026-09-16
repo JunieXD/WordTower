@@ -1,18 +1,27 @@
 from app.utils.config import settings
 from openai import AsyncOpenAI
+import asyncio
 import json
 import re
 from typing import Dict, Any, List, Tuple
 from app.utils.logger import get_logger
 from app.utils.word_forms import text_contains_target_form
 
+if not settings.ECNU_API_KEY:
+    raise ValueError("ECNU_API_KEY is required; configure it in .env before starting WordTower")
+
 client = AsyncOpenAI(
-    api_key=settings.ARK_API_KEY,
-    base_url=settings.ARK_API_BASE_URL,
+    api_key=settings.ECNU_API_KEY,
+    base_url=settings.ECNU_API_BASE_URL,
     timeout=20.0,
     max_retries=1,
 )
 logger = get_logger(__name__)
+
+# Shared by question generation, reviews, prewarming and answer grading.
+# Production runs one worker; multiple workers/replicas need a distributed limiter.
+_request_slots = asyncio.Semaphore(settings.ECNU_MAX_CONCURRENCY)
+MAX_QUEUE_WAIT_SECONDS = 20.0
 
 # 最大重试次数
 MAX_RETRY_COUNT = 3
@@ -528,8 +537,10 @@ def validate_question(question_type: str, content: Dict[str, Any]) -> Tuple[bool
         return True, []  # 未知类型，跳过验证
 
 
-def _parse_json_response(content: str) -> Dict[str, Any]:
+def _parse_json_response(content: str | None) -> Dict[str, Any]:
     """解析并清理 LLM 返回的 JSON 内容"""
+    if not content or not content.strip():
+        raise ValueError("LLM 返回内容为空，无法解析为 JSON")
     # 清理可能的 markdown 代码块标记
     content = content.strip()
     if content.startswith("```json"):
@@ -597,7 +608,7 @@ async def _call_llm(prompt: str) -> Dict[str, Any]:
     for attempt in range(MAX_JSON_PARSE_RETRY_COUNT):
         logger.debug(
             "LLM 调用开始：model=%s attempt=%s/%s prompt长度=%s prompt预览=%s",
-            settings.ARK_API_MODEL_ID,
+            settings.ECNU_API_MODEL_ID,
             attempt + 1,
             MAX_JSON_PARSE_RETRY_COUNT,
             len(prompt),
@@ -619,14 +630,30 @@ async def _call_llm(prompt: str) -> Dict[str, Any]:
                 }
             )
 
-        response = await client.chat.completions.create(
-            model=settings.ARK_API_MODEL_ID,
-            messages=messages,
-            extra_body={"thinking": {"type": "disabled"}, "temperature": 0.7},
-        )
-        content = response.choices[0].message.content
-        logger.debug("LLM 返回内容预览：%s", _preview_text(content or ""))
+        # Include SDK retries in the same slot so retries cannot exceed the cap.
         try:
+            await asyncio.wait_for(_request_slots.acquire(), timeout=MAX_QUEUE_WAIT_SECONDS)
+        except TimeoutError as e:
+            raise TimeoutError("模型请求排队超时，请稍后重试") from e
+        try:
+            response = await client.chat.completions.create(
+                model=settings.ECNU_API_MODEL_ID,
+                messages=messages,
+                temperature=0.7,
+                response_format={"type": "json_object"},
+                max_tokens=2048,
+                extra_body={"thinking": {"type": "disabled"}},
+            )
+        finally:
+            _request_slots.release()
+        try:
+            if not response.choices:
+                raise ValueError("LLM 未返回任何候选回答")
+            choice = response.choices[0]
+            if choice.finish_reason != "stop":
+                raise ValueError(f"LLM 回答未正常完成: {choice.finish_reason}")
+            content = choice.message.content
+            logger.debug("LLM 返回内容预览：%s", _preview_text(content or ""))
             return _parse_json_response(content)
         except ValueError as e:
             last_error = e
