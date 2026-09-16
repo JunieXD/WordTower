@@ -1310,23 +1310,33 @@ async def process_generated_questions(user_id: int, tasks: list[asyncio.Task], e
         await redis.close()
 
 async def generate_questions_background_task(user_id: int, count: int):
-    """
-    后台任务，用于生成'count'个问题并将其推送到Redis。
-    """
-    redis = Redis(connection_pool=pool)
-    try:
-        logger.debug("后台生成任务开始：用户ID=%s count=%s", user_id, count)
-        tasks = [asyncio.create_task(generate_single_question(user_id)) for _ in range(count)]
-        results = await asyncio.gather(*tasks)
-        queued_count = 0
-        for q in results:
-            if q:
-                pushed = await push_question_to_queue(redis, user_id, q)
-                if pushed:
-                    queued_count += 1
+    from app.services.traffic import admit, RELEASE_SCRIPT, _renew, LEASE_SECONDS
+    from app.services.work_priority import background_work
+    from contextlib import suppress
+    import uuid
 
-        logger.info("后台生成题目完成：用户ID=%s 请求数量=%s 入队数量=%s", user_id, count, queued_count)
-    except Exception as e:
-        logger.exception("后台生成题目失败：用户ID=%s 错误=%s", user_id, str(e))
+    redis = Redis(connection_pool=pool)
+    lock_key = f"traffic:{{{user_id}}}:prefetch"
+    owner = str(uuid.uuid4())
+    renewal = None
+    try:
+        if not await redis.set(lock_key, owner, nx=True, ex=LEASE_SECONDS):
+            return
+        renewal = asyncio.create_task(_renew(redis, lock_key, owner))
+        # One low-priority lookahead; leave interactive capacity unused.
+        if not await admit(redis, user_id, background=True):
+            return
+        with background_work():
+            question = await generate_single_question(user_id)
+        if question:
+            await push_question_to_queue(redis, user_id, question)
+    except Exception:
+        logger.exception("预生成暂缓：用户ID=%s", user_id)
     finally:
-        await redis.close()
+        if renewal is not None:
+            renewal.cancel()
+            with suppress(asyncio.CancelledError, Exception):
+                await renewal
+            with suppress(Exception):
+                await redis.eval(RELEASE_SCRIPT, 1, lock_key, owner)
+        await redis.aclose()

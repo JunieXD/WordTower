@@ -45,6 +45,7 @@ from app.utils.config import (
 )
 from app.utils.logger import get_logger
 from app.utils.prompt import get_answer_check_prompt
+from app.services.work_priority import background_work
 
 logger = get_logger(__name__)
 
@@ -557,9 +558,10 @@ async def prewarm_daily_questions(
     question_index: int,
     enemy_hp: int,
     count: int | None = None,
+    user_id: int | None = None,
 ) -> None:
-    prewarm_count = count if count is not None else settings.DAILY_CHALLENGE_PREWARM_COUNT
-    if prewarm_count <= 0:
+    prewarm_count = min(1, count if count is not None else settings.DAILY_CHALLENGE_PREWARM_COUNT)
+    if prewarm_count <= 0 or user_id is None:
         return
 
     redis = Redis(connection_pool=pool)
@@ -585,6 +587,11 @@ async def prewarm_daily_questions(
 
             for target_floor, target_question_index in positions:
                 try:
+                    if _get_daily_floor_question(session, day.id, target_floor, target_question_index):
+                        continue
+                    from app.services.traffic import admit
+                    if not await admit(redis, user_id, background=True):
+                        break
                     await ensure_daily_question(session, redis, day, target_floor, target_question_index)
                 except Exception:
                     logger.exception(
@@ -604,9 +611,10 @@ def schedule_daily_question_prewarm(
     question_index: int,
     enemy_hp: int,
     count: int | None = None,
+    user_id: int | None = None,
 ) -> None:
-    prewarm_count = count if count is not None else settings.DAILY_CHALLENGE_PREWARM_COUNT
-    if prewarm_count <= 0:
+    prewarm_count = min(1, count if count is not None else settings.DAILY_CHALLENGE_PREWARM_COUNT)
+    if prewarm_count <= 0 or user_id is None:
         return
 
     task_key = (day_id, floor, question_index, enemy_hp)
@@ -615,16 +623,20 @@ def schedule_daily_question_prewarm(
 
     async def _run_prewarm() -> None:
         try:
-            await asyncio.wait_for(
-                prewarm_daily_questions(
-                    day_id=day_id,
-                    floor=floor,
-                    question_index=question_index,
-                    enemy_hp=enemy_hp,
-                    count=prewarm_count,
-                ),
-                timeout=DAILY_PREWARM_TASK_TIMEOUT_SECONDS,
-            )
+            # Let the current response release its interactive lock first.
+            await asyncio.sleep(0.25)
+            with background_work():
+                await asyncio.wait_for(
+                    prewarm_daily_questions(
+                        day_id=day_id,
+                        floor=floor,
+                        question_index=question_index,
+                        enemy_hp=enemy_hp,
+                        count=prewarm_count,
+                        user_id=user_id,
+                    ),
+                    timeout=DAILY_PREWARM_TASK_TIMEOUT_SECONDS,
+                )
         except TimeoutError:
             logger.warning(
                 "每日挑战共享预热超时：day_id=%s floor=%s question_index=%s timeout=%ss",
@@ -1029,6 +1041,7 @@ async def advance_daily_run_after_answer(
             session.commit()
             session.refresh(run)
             schedule_daily_question_prewarm(
+                user_id=run.user_id,
                 day_id=day.id,
                 floor=run.current_floor,
                 question_index=run.current_question_index,
@@ -1057,6 +1070,7 @@ async def advance_daily_run_after_answer(
         session.commit()
         session.refresh(run)
         schedule_daily_question_prewarm(
+            user_id=run.user_id,
             day_id=day.id,
             floor=run.current_floor,
             question_index=run.current_question_index,
@@ -1094,6 +1108,7 @@ async def advance_daily_run_after_answer(
     session.commit()
     session.refresh(run)
     schedule_daily_question_prewarm(
+        user_id=run.user_id,
         day_id=day.id,
         floor=run.current_floor,
         question_index=run.current_question_index,

@@ -6,6 +6,7 @@ import re
 from typing import Dict, Any, List, Tuple
 from app.utils.logger import get_logger
 from app.utils.word_forms import text_contains_target_form
+from app.services.work_priority import is_background_work
 
 if not settings.ECNU_API_KEY:
     raise ValueError("ECNU_API_KEY is required; configure it in .env before starting WordTower")
@@ -21,6 +22,9 @@ logger = get_logger(__name__)
 # Shared by question generation, reviews, prewarming and answer grading.
 # Production runs one worker; multiple workers/replicas need a distributed limiter.
 _request_slots = asyncio.Semaphore(settings.ECNU_MAX_CONCURRENCY)
+# Speculative work may occupy at most one provider slot; interactive calls can
+# use every remaining slot. In-flight HTTP calls are never cancelled to preempt.
+_background_slots = asyncio.Semaphore(1)
 MAX_QUEUE_WAIT_SECONDS = 20.0
 
 # 最大重试次数
@@ -631,11 +635,17 @@ async def _call_llm(prompt: str) -> Dict[str, Any]:
             )
 
         # Include SDK retries in the same slot so retries cannot exceed the cap.
+        background_acquired = False
+        acquired = False
         try:
-            await asyncio.wait_for(_request_slots.acquire(), timeout=MAX_QUEUE_WAIT_SECONDS)
-        except TimeoutError as e:
-            raise TimeoutError("模型请求排队超时，请稍后重试") from e
-        try:
+            try:
+                if is_background_work.get():
+                    await asyncio.wait_for(_background_slots.acquire(), timeout=MAX_QUEUE_WAIT_SECONDS)
+                    background_acquired = True
+                await asyncio.wait_for(_request_slots.acquire(), timeout=MAX_QUEUE_WAIT_SECONDS)
+                acquired = True
+            except TimeoutError as e:
+                raise TimeoutError("模型请求排队超时，请稍后重试") from e
             response = await client.chat.completions.create(
                 model=settings.ECNU_API_MODEL_ID,
                 messages=messages,
@@ -645,7 +655,10 @@ async def _call_llm(prompt: str) -> Dict[str, Any]:
                 extra_body={"thinking": {"type": "disabled"}},
             )
         finally:
-            _request_slots.release()
+            if acquired:
+                _request_slots.release()
+            if background_acquired:
+                _background_slots.release()
         try:
             if not response.choices:
                 raise ValueError("LLM 未返回任何候选回答")

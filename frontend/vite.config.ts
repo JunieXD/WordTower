@@ -57,15 +57,9 @@ export default defineConfig({
           },
           {
             urlPattern: /^https:\/\/.*\/api\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'api-cache',
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 5, // 5分钟
-              },
-              networkTimeoutSeconds: 10,
-            },
+            // A question fetch consumes a queue item. Replaying an old GET response
+            // after a timeout would bypass the server's idempotency contract.
+            handler: 'NetworkOnly',
           },
         ],
       },

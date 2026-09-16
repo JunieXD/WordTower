@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 import { AxiosError } from 'axios'
 
 import request from '@/utils/request'
+import { reliableRequest } from '@/utils/reliableRequest'
 import type {
   AnswerDetail,
   QuestionContent0,
@@ -77,7 +78,9 @@ export interface DailyChallengeOverview {
 
 type CountdownTimer = ReturnType<typeof setInterval> | null
 
-function cloneQuestion(question: DailyChallengeQuestion | null | undefined): DailyChallengeQuestion | null {
+function cloneQuestion(
+  question: DailyChallengeQuestion | null | undefined,
+): DailyChallengeQuestion | null {
   if (!question) return null
   return JSON.parse(JSON.stringify(question)) as DailyChallengeQuestion
 }
@@ -195,7 +198,11 @@ export const useDailyChallengeStore = defineStore('dailyChallenge', () => {
   async function startOrResume() {
     isStartingChallenge.value = true
     try {
-      const res = await request.post('/api/daily-challenge/start', null, { timeout: 30000 })
+      const res = await reliableRequest({
+        method: 'post',
+        url: '/api/daily-challenge/start',
+        data: null,
+      })
       if (res.data.success) {
         const state = res.data.data as DailyChallengeState
         applyFreshState(state)
@@ -228,10 +235,14 @@ export const useDailyChallengeStore = defineStore('dailyChallenge', () => {
 
     isSubmittingAnswer.value = true
     try {
-      const res = await request.post('/api/daily-challenge/answer', {
-        question_id: displayedQuestion.value.question_id,
-        ...payload,
-      }, { timeout: 30000 })
+      const res = await reliableRequest({
+        method: 'post',
+        url: '/api/daily-challenge/answer',
+        data: {
+          question_id: displayedQuestion.value.question_id,
+          ...payload,
+        },
+      })
 
       if (res.data.success) {
         const next = res.data.data as DailyChallengeState
@@ -254,7 +265,9 @@ export const useDailyChallengeStore = defineStore('dailyChallenge', () => {
       const message =
         error instanceof AxiosError && error.code === 'ECONNABORTED'
           ? '提交超时，下一题准备时间过长，请稍后重试'
-          : '提交失败，请检查网络或稍后重试'
+          : error instanceof Error
+            ? error.message
+            : '提交失败，当前答案已保留，请稍后重试'
       return { success: false, message }
     } finally {
       isSubmittingAnswer.value = false

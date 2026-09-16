@@ -70,6 +70,9 @@
 </template>
 
 <script setup lang="ts">
+import { onBeforeUnmount } from 'vue'
+import { cancelPendingActions } from '@/utils/reliableRequest'
+onBeforeUnmount(cancelPendingActions)
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
@@ -178,11 +181,16 @@ function predictObjectiveAnswer(payload: BattleSubmitPayload) {
   if (displayedQuestion.value.type === 'context_guess') {
     const content = displayedQuestion.value.content as QuestionContent0
     const selectedOption = (payload.selected_option ?? '').trim().toUpperCase()
-    const correctOption = String(content.correct_option ?? '').trim().toUpperCase()
+    const correctOption = String(content.correct_option ?? '')
+      .trim()
+      .toUpperCase()
     const isCorrect = selectedOption === correctOption
 
     if (isCorrect) {
-      const nextEnemyHp = Math.max(0, activeState.value.current_enemy_hp - activeState.value.player_attack)
+      const nextEnemyHp = Math.max(
+        0,
+        activeState.value.current_enemy_hp - activeState.value.player_attack,
+      )
       return {
         isCorrect: true,
         nextEnemyHp,
@@ -241,7 +249,10 @@ function predictObjectiveAnswer(payload: BattleSubmitPayload) {
       selectedSequence.every((word, index) => word === correctSequence[index])
 
     if (isCorrect) {
-      const nextEnemyHp = Math.max(0, activeState.value.current_enemy_hp - activeState.value.player_attack)
+      const nextEnemyHp = Math.max(
+        0,
+        activeState.value.current_enemy_hp - activeState.value.player_attack,
+      )
       return {
         isCorrect: true,
         nextEnemyHp,
@@ -316,7 +327,7 @@ async function bootstrapDailyChallenge() {
     }
   } catch (error) {
     console.error('加载每日挑战失败:', error)
-    loadErrorMessage.value = '每日挑战加载失败，请稍后重试'
+    loadErrorMessage.value = error instanceof Error ? error.message : '每日挑战加载失败，请稍后重试'
     notificationStore.addNotification({
       title: '每日挑战',
       description: loadErrorMessage.value,

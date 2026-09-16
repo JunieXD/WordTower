@@ -15,7 +15,9 @@
       >
         {{ index + 1 }}. {{ word }}
       </span>
-      <span v-if="selectedWords.length === 0" class="text-sm text-gray-500">还没有选择任何单词</span>
+      <span v-if="selectedWords.length === 0" class="text-sm text-gray-500"
+        >还没有选择任何单词</span
+      >
     </div>
 
     <div class="flex flex-wrap gap-2">
@@ -44,7 +46,9 @@
       <Button
         variant="outline"
         size="sm"
-        :disabled="isAnswered || isSubmitting || selectedOptionIndices.length !== expectedSequenceLength"
+        :disabled="
+          isAnswered || isSubmitting || selectedOptionIndices.length !== expectedSequenceLength
+        "
         @click="handleSubmit"
       >
         提交答案
@@ -66,7 +70,12 @@
       正确英文：
       <span v-html="correctFilledText"></span>
     </p>
-    <Button class="self-start mt-2" variant="outline" :disabled="isSubmitting" @click="handleContinue">
+    <Button
+      class="self-start mt-2"
+      variant="outline"
+      :disabled="isSubmitting"
+      @click="handleContinue"
+    >
       {{ isSubmitting ? '下一题准备中...' : '继续' }}
     </Button>
   </Card>
@@ -100,7 +109,9 @@ const props = defineProps({
 
 const emit = defineEmits(['isCorrect', 'continue', 'submit'])
 
-const content = computed<QuestionContent1 | null>(() => (props.question?.content as QuestionContent1) ?? null)
+const content = computed<QuestionContent1 | null>(
+  () => (props.question?.content as QuestionContent1) ?? null,
+)
 const questionKey = computed(() => props.question?.id ?? props.question?.question_id ?? null)
 
 const clozeText = computed(() => content.value?.cloze_text ?? '')
@@ -121,15 +132,13 @@ const errorMessage = ref('')
 
 const displayedResult = computed(() => {
   if (props.evaluationMode === 'server') {
-    return props.answerResult as
-      | {
-          is_correct: boolean
-          detail?: {
-            correct_sequence?: string[]
-            chinese_translation?: string
-          }
-        }
-      | null
+    return props.answerResult as {
+      is_correct: boolean
+      detail?: {
+        correct_sequence?: string[]
+        chinese_translation?: string
+      }
+    } | null
   }
 
   return isCorrect.value === null
@@ -144,9 +153,13 @@ const displayedResult = computed(() => {
 })
 
 const displayedIsCorrect = computed(() => displayedResult.value?.is_correct ?? null)
-const displayedTranslation = computed(() => displayedResult.value?.detail?.chinese_translation ?? chineseTranslation.value)
+const displayedTranslation = computed(
+  () => displayedResult.value?.detail?.chinese_translation ?? chineseTranslation.value,
+)
 
-const selectedWords = computed(() => selectedOptionIndices.value.map((idx) => shuffledOptions.value[idx] ?? ''))
+const selectedWords = computed(() =>
+  selectedOptionIndices.value.map((idx) => shuffledOptions.value[idx] ?? ''),
+)
 
 const isOptionUsed = (index: number) => selectedOptionIndices.value.includes(index)
 
@@ -168,7 +181,8 @@ const renderedClozeText = computed(() => {
 const correctFilledText = computed(() => {
   if (!clozeText.value) return ''
 
-  const displayCorrectSequence = displayedResult.value?.detail?.correct_sequence ?? correctSequence.value
+  const displayCorrectSequence =
+    displayedResult.value?.detail?.correct_sequence ?? correctSequence.value
   const regex = /____\[(\d+)]____/g
   return clozeText.value.replace(regex, (match, indexStr) => {
     const idx = Number(indexStr) - 1
@@ -241,7 +255,13 @@ watch(
 watch(
   () => props.answerResult,
   (value) => {
-    if (props.evaluationMode !== 'server' || !value) return
+    if (props.evaluationMode !== 'server') return
+    if (!value) {
+      // An optimistic daily answer can be rolled back after a network error.
+      // Keep the selection/input, but allow the same answer to be submitted again.
+      isAnswered.value = false
+      return
+    }
     isAnswered.value = true
   },
   { immediate: true },

@@ -1,4 +1,12 @@
 <template>
+  <div
+    v-if="actionError"
+    role="status"
+    class="mx-4 my-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950"
+  >
+    {{ actionError }}
+    <Button class="ml-2" variant="outline" :disabled="isBusy" @click="retryAction">重试</Button>
+  </div>
   <BattleContainer
     ref="battleContainer"
     :question="combatStore.currentQuestion"
@@ -6,6 +14,7 @@
     :enemy-hp="displayEnemyHp"
     :evaluation-mode="currentAnswerResult ? 'server' : 'client'"
     :answer-result="currentAnswerResult"
+    :is-submitting="isBusy"
     @is-correct="handleAnswer"
     @continue="handleContinue"
   >
@@ -51,7 +60,7 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, onMounted, ref, watch } from 'vue'
+import { nextTick, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useRouter } from 'vue-router'
 
@@ -68,6 +77,7 @@ import {
   type QuestionContent1,
   type QuestionContent2,
 } from '@/stores/combat'
+import { cancelPendingActions } from '@/utils/reliableRequest'
 import { useNotificationStore } from '@/stores/notification'
 
 const COMBAT_PENDING_SNAPSHOT_KEY = 'wordtower:combat-pending-snapshot'
@@ -80,6 +90,12 @@ const router = useRouter()
 const displayPlayerHp = ref(0)
 const displayEnemyHp = ref(0)
 const isAnimatingTransition = ref(false)
+const isBusy = ref(false)
+const actionError = ref('')
+let pendingAnswer: BattleAnswerEvent | null = null
+let retryAction: () => Promise<void> = async () => {}
+let nextLevelPrepared = false
+let needsRespawn = false
 const currentAnswerResult = ref<Record<string, unknown> | null>(null)
 
 const userRating = ref(0)
@@ -192,11 +208,11 @@ function buildLocalAnswerResult(
           correct_text:
             typeof answerDetail?.correct_text === 'string'
               ? answerDetail.correct_text
-              : content.options?.[correctOption as keyof typeof content.options] ?? '',
+              : (content.options?.[correctOption as keyof typeof content.options] ?? ''),
           explanation:
             typeof answerDetail?.explanation === 'string'
               ? answerDetail.explanation
-              : content.explanation ?? '',
+              : (content.explanation ?? ''),
         },
       }
     }
@@ -207,13 +223,14 @@ function buildLocalAnswerResult(
         detail: {
           ...answerDetail,
           correct_sequence:
-            Array.isArray(answerDetail?.correct_sequence) && answerDetail.correct_sequence.length > 0
+            Array.isArray(answerDetail?.correct_sequence) &&
+            answerDetail.correct_sequence.length > 0
               ? answerDetail.correct_sequence
-              : content.correct_sequence ?? [],
+              : (content.correct_sequence ?? []),
           chinese_translation:
             typeof answerDetail?.chinese_translation === 'string'
               ? answerDetail.chinese_translation
-              : content.chinese_translation ?? '',
+              : (content.chinese_translation ?? ''),
         },
       }
     }
@@ -226,7 +243,7 @@ function buildLocalAnswerResult(
           reference_answer:
             typeof answerDetail?.reference_answer === 'string'
               ? answerDetail.reference_answer
-              : content.reference_answer ?? '',
+              : (content.reference_answer ?? ''),
         },
       }
     }
@@ -285,19 +302,31 @@ async function handleAnswer(payload: BattleAnswerEvent) {
     return
   }
 
+  if (isBusy.value) return
+  isBusy.value = true
+  actionError.value = ''
+  pendingAnswer = payload
+  retryAction = () => handleAnswer(payload)
   const { isCorrect, answerDetail } = normalizeAnswerEvent(payload)
-  currentAnswerResult.value = buildLocalAnswerResult(
-    combatStore.currentQuestion,
-    isCorrect,
-    answerDetail as AnswerDetail | undefined,
-  )
-
-  const answerMeta = await combatStore.answerQuestion(
-    combatStore.currentQuestion.id,
-    isCorrect,
-    answerDetail as AnswerDetail | undefined,
-  )
-  attachReviewHintToAnswerResult(combatStore.currentQuestion, answerMeta)
+  try {
+    const answerMeta = await combatStore.answerQuestion(
+      combatStore.currentQuestion.id,
+      isCorrect,
+      answerDetail as AnswerDetail | undefined,
+    )
+    currentAnswerResult.value = buildLocalAnswerResult(
+      combatStore.currentQuestion,
+      isCorrect,
+      answerDetail as AnswerDetail | undefined,
+    )
+    attachReviewHintToAnswerResult(combatStore.currentQuestion, answerMeta)
+    pendingAnswer = null
+  } catch (error) {
+    actionError.value = error instanceof Error ? error.message : '提交暂未完成，答案已保留。'
+    isBusy.value = false
+    return
+  }
+  isBusy.value = false
 
   isAnimatingTransition.value = true
 
@@ -341,40 +370,61 @@ async function handleAnswer(payload: BattleAnswerEvent) {
 }
 
 async function handleContinue() {
-  if (!combatStore.combatInfo) return
-
-  battleContainer.value?.cancelActiveAnimation()
-  isAnimatingTransition.value = false
-
+  if (!combatStore.combatInfo || isBusy.value || pendingAnswer !== null) return
+  isBusy.value = true
+  actionError.value = ''
+  retryAction = handleContinue
   const enemyDefeated = combatStore.combatInfo.enemy_hp <= 0
-  clearPendingSnapshot()
-  currentAnswerResult.value = null
-
-  if (enemyDefeated) {
-    await combatStore.CompleteCombat()
-    await combatStore.StartCombat()
-  }
-
-  await combatStore.fetchQuestion()
-  syncDisplayedHealth()
-  await nextTick()
-
-  if (enemyDefeated) {
-    battleContainer.value?.respawnEnemy()
+  try {
+    battleContainer.value?.cancelActiveAnimation()
+    isAnimatingTransition.value = false
+    if (enemyDefeated) {
+      if (!nextLevelPrepared) {
+        await combatStore.CompleteCombat()
+        nextLevelPrepared = true
+        needsRespawn = true
+      }
+      await combatStore.StartCombat()
+    }
+    // Keep the old answer visible until its replacement actually arrives.
+    await combatStore.fetchQuestion()
+    nextLevelPrepared = false
+    clearPendingSnapshot()
+    currentAnswerResult.value = null
+    syncDisplayedHealth()
+    await nextTick()
+    if (needsRespawn) {
+      battleContainer.value?.respawnEnemy()
+      needsRespawn = false
+    }
+  } catch (error) {
+    actionError.value = error instanceof Error ? error.message : '下一题暂未准备好，请稍后重试。'
+  } finally {
+    isBusy.value = false
   }
 }
 
 async function initializeCombat() {
-  await combatStore.StartCombat()
-  if (!restorePendingSnapshot()) {
-    currentAnswerResult.value = null
-    syncDisplayedHealth()
-    await combatStore.fetchQuestion()
+  isBusy.value = true
+  actionError.value = ''
+  retryAction = initializeCombat
+  try {
+    await combatStore.StartCombat()
+    if (!restorePendingSnapshot()) {
+      currentAnswerResult.value = null
+      syncDisplayedHealth()
+      await combatStore.fetchQuestion()
+    }
+    await nextTick()
+    battleContainer.value?.enterBattlefield()
+  } catch (error) {
+    actionError.value = error instanceof Error ? error.message : '题目加载暂未完成，请重试。'
+  } finally {
+    isBusy.value = false
   }
-  await nextTick()
-  battleContainer.value?.enterBattlefield()
 }
 
+onBeforeUnmount(cancelPendingActions)
 onMounted(() => {
   void initializeCombat()
 })

@@ -4,6 +4,31 @@ import { describe, expect, it } from 'vitest'
 import QuestionChoice from '@/components/Question/QuestionChoice.vue'
 
 describe('QuestionChoice', () => {
+  it('allows retrying the retained choice after an optimistic answer fails', async () => {
+    const wrapper = mount(QuestionChoice, {
+      props: {
+        evaluationMode: 'server',
+        question: {
+          id: 9,
+          content: {
+            target_word: 'tower',
+            story: 'A tall tower.',
+            options: { A: '塔', B: '树', C: '河', D: '路' },
+          },
+        },
+      },
+    })
+    await wrapper.get('button').trigger('click')
+    await wrapper.setProps({
+      answerResult: { is_correct: true, detail: { selected_option: 'A', correct_option: 'A' } },
+    })
+    await wrapper.setProps({ answerResult: undefined, isSubmitting: false })
+    expect(wrapper.get('button').attributes('disabled')).toBeUndefined()
+    await wrapper.get('button').trigger('click')
+    expect(wrapper.emitted('submit')).toHaveLength(2)
+    expect(wrapper.emitted('submit')?.[1]).toEqual([{ selected_option: 'A' }])
+  })
+
   it('highlights inferred inflected forms when storyTargetForms is missing', () => {
     const wrapper = mount(QuestionChoice, {
       props: {

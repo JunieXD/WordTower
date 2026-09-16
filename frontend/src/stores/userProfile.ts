@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import request from '@/utils/request'
+import { clearPendingActions } from '@/utils/reliableRequest'
 
 export interface UserProfile {
   id: number
@@ -32,6 +33,7 @@ export const useUserProfileStore = defineStore('userProfile', () => {
     try {
       const res = await request.get('/api/auth/profile')
       if (res.data.success && res.data.data) {
+        if (profile.value?.id !== res.data.data.id) clearPendingActions()
         profile.value = res.data.data
       }
     } catch (error) {
@@ -56,6 +58,14 @@ export const useUserProfileStore = defineStore('userProfile', () => {
    * 清除用户资料（登出时调用）
    */
   function clearProfile() {
+    clearPendingActions()
+    try {
+      for (const key of Object.keys(sessionStorage)) {
+        if (key.startsWith('wordtower:answer-draft:')) sessionStorage.removeItem(key)
+      }
+    } catch {
+      /* Optional draft persistence. */
+    }
     profile.value = null
   }
 

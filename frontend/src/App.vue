@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import NotificationContainer from '@/components/NotificationContainer.vue'
 import PWAInstallPrompt from '@/components/PWAInstallPrompt.vue'
+import RequestRecoveryNotice from '@/components/RequestRecoveryNotice.vue'
 </script>
 
 <template>
   <PWAInstallPrompt />
   <NotificationContainer />
+  <RequestRecoveryNotice />
   <router-view />
 </template>
 

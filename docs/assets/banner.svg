@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="420" viewBox="0 0 1280 420" role="img" aria-labelledby="title desc">
+  <title id="title">WordTower · 把每一个单词，变成向上的力量</title>
+  <desc id="desc">深蓝色夜空中，一座由单词和像素砖块组成的高塔。</desc>
+  <defs>
+    <linearGradient id="sky" x2="1" y2="1"><stop stop-color="#11162b"/><stop offset="1" stop-color="#292047"/></linearGradient>
+    <linearGradient id="tower" x2="0" y2="1"><stop stop-color="#9d91de"/><stop offset="1" stop-color="#4c427d"/></linearGradient>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse"><path d="M32 0H0V32" fill="none" stroke="#ffffff" stroke-opacity=".035"/></pattern>
+  </defs>
+  <rect width="1280" height="420" rx="24" fill="url(#sky)"/>
+  <rect width="1280" height="420" rx="24" fill="url(#grid)"/>
+  <circle cx="1050" cy="172" r="126" fill="#9381d2" opacity=".07"/>
+  <circle cx="1050" cy="172" r="98" fill="#9381d2" opacity=".07"/>
+  <g fill="#e7c580"><path d="M844 74h6v6h-6zM1150 92h6v6h-6zM1208 205h4v4h-4zM793 249h4v4h-4z"/><path d="M1090 42h4v14h-4zM1085 47h14v4h-14z"/></g>
+  <text x="76" y="89" fill="#c9b7f4" font-family="ui-monospace, monospace" font-size="15" letter-spacing="5">LEARN · BATTLE · CLIMB</text>
+  <text x="72" y="192" fill="#faf8ff" font-family="Inter, Arial, sans-serif" font-size="88" font-weight="750" letter-spacing="-4">WordTower<tspan fill="#e7c580">.</tspan></text>
+  <text x="78" y="248" fill="#dfd9ec" font-family="Arial, PingFang SC, Microsoft YaHei, sans-serif" font-size="25">把每一个单词，变成向上的力量。</text>
+  <rect x="77" y="290" width="278" height="40" rx="20" fill="#ffffff" fill-opacity=".07" stroke="#ffffff" stroke-opacity=".12"/>
+  <text x="98" y="316" fill="#d4ccea" font-family="Arial, sans-serif" font-size="15">Vocabulary × RPG × AI</text>
+  <g shape-rendering="crispEdges">
+    <path d="M892 346V184h24v-28h24v28h24v-28h24v28h24v162z" fill="#534773"/>
+    <path d="M972 346V116h24V88h24v28h24V88h24v28h24v230z" fill="url(#tower)"/>
+    <path d="M1080 346V226h20v-24h20v24h20v-24h20v24h20v120z" fill="#635184"/>
+    <path d="M964 146h136v10H964zM964 222h136v10H964zM964 298h136v10H964z" fill="#b7a6e5"/>
+    <path d="M1020 162h24v38h-24zM1020 238h24v38h-24zM924 214h16v26h-16zM1118 251h16v26h-16z" fill="#efcf8e"/>
+    <path d="M852 346h360v12H852zM884 358h296v10H884z" fill="#9482bb"/>
+    <path d="M1030 50h4v38h-4z" fill="#d3c8ef"/><path d="M1034 50h46v22h-46z" fill="#e7bd70"/>
+  </g>
+  <g font-family="ui-monospace, monospace" font-size="18" font-weight="bold" text-anchor="middle">
+    <rect x="820" y="155" width="42" height="42" rx="8" fill="#e7c580" transform="rotate(-10 841 176)"/><text x="841" y="182" fill="#302541">A</text>
+    <rect x="1147" y="131" width="42" height="42" rx="8" fill="#bda4ec" transform="rotate(12 1168 152)"/><text x="1168" y="159" fill="#302541">Z</text>
+  </g>
+</svg>

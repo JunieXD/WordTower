@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from app.utils.LLM import generate_text, precheck_translation_answer
 from app.db.database import SessionDep
 from app.models.question import QuestionCheck
@@ -20,12 +20,9 @@ from app.db.question import (
     generate_questions_background_task,
     generate_single_question,
     is_recent_duplicate_payload,
-    is_recent_duplicate_question,
     is_same_day_word_duplicate_payload,
-    is_same_day_word_duplicate_question,
     mark_question_served_payload,
     mark_question_served_question,
-    process_generated_questions,
     remove_question_from_queue_indexes,
 )
 from app.db.level import link_level_question
@@ -33,25 +30,13 @@ from app.models.question_word_link import QuestionWordLink
 from app.models.word import Word
 from app.services.spaced_repetition import estimate_word_next_review_days
 from fastapi import BackgroundTasks
-import asyncio
 import json
 from app.utils.logger import get_logger
 from app.utils.question_payload import ensure_story_target_forms_in_payload, serialize_question_for_client
-from app.utils.config import settings
+from app.services.traffic import admit, user_action
 
 router = APIRouter(prefix="/api/question", tags=["question"])
 logger = get_logger(__name__)
-_question_generation_singleflight_locks: dict[int, asyncio.Lock] = {}
-
-
-def _get_singleflight_lock(user_id: int) -> asyncio.Lock:
-    lock = _question_generation_singleflight_locks.get(user_id)
-    if lock is None:
-        lock = asyncio.Lock()
-        _question_generation_singleflight_locks[user_id] = lock
-    return lock
-
-
 async def _try_get_question_from_queue(
     redis: Redis,
     user_id: int,
@@ -130,70 +115,31 @@ def _build_context_guess_review_hint(session: Session, user: User, question: Que
     }
 
 @router.get("/get")
+@user_action("question-get")
 async def get_question(
+    request: Request,
     background_tasks: BackgroundTasks,
     user_in: User = Depends(get_current_user),
-    redis: Redis = Depends(get_redis)
+    redis: Redis = Depends(get_redis),
 ):
     await ensure_question_queue_day(redis, user_in.id)
-    queue_question_data = await _try_get_question_from_queue(redis, user_in.id, background_tasks)
-    if queue_question_data is not None:
-        return success_response(data=ensure_story_target_forms_in_payload(queue_question_data))
+    queued = await _try_get_question_from_queue(redis, user_in.id, background_tasks)
+    if queued is not None:
+        return success_response(data=ensure_story_target_forms_in_payload(queued))
 
-    generation_lock = _get_singleflight_lock(user_in.id)
-    if generation_lock.locked():
-        logger.info("获取题目：命中single-flight，等待并发生成结果，用户ID=%s", user_in.id)
-
-    async with generation_lock:
-        queue_question_data = await _try_get_question_from_queue(redis, user_in.id, background_tasks)
-        if queue_question_data is not None:
-            return success_response(data=ensure_story_target_forms_in_payload(queue_question_data))
-
-        request_context = QuestionGenerationRequestContext()
-        generation_batch_size = max(1, min(int(settings.QUESTION_GET_GENERATION_BATCH_SIZE), 5))
-        tasks = [
-            asyncio.create_task(generate_single_question(user_in.id, request_context=request_context))
-            for _ in range(generation_batch_size)
-        ]
-    
-        question_to_return = None
-        duplicate_candidate = None
-    
-        # 获取第一个完成的任务结果
-        for future in asyncio.as_completed(tasks):
-            try:
-                q = await future
-                if q:
-                    if await is_recent_duplicate_question(redis, user_in.id, q):
-                        if duplicate_candidate is None:
-                            duplicate_candidate = q
-                        logger.info("获取题目：实时生成命中重复题，暂不返回，用户ID=%s 题目ID=%s", user_in.id, q.id)
-                        continue
-                    if await is_same_day_word_duplicate_question(redis, user_in.id, q):
-                        logger.info("获取题目：实时生成命中当日重复词，暂不返回，用户ID=%s 题目ID=%s", user_in.id, q.id)
-                        continue
-                    question_to_return = q
-                    break
-            except Exception:
-                continue
-
-        if question_to_return is None and duplicate_candidate is not None:
-            question_to_return = duplicate_candidate
-            logger.info("获取题目：实时生成仅有重复题，回退返回，用户ID=%s 题目ID=%s", user_in.id, question_to_return.id)
-             
-        if not question_to_return:
-            logger.error("获取题目失败：生成结果为空，用户ID=%s", user_in.id)
-            return not_found_response(message="无法生成题目，请检查词库是否充足")
-         
-        # 其余的任务交给后台处理，并将结果推入队列
-        background_tasks.add_task(process_generated_questions, user_in.id, tasks, question_to_return.id)
-        await mark_question_served_question(redis, user_in.id, question_to_return)
-        logger.info("获取题目：实时生成成功，用户ID=%s 题目ID=%s", user_in.id, question_to_return.id)
-         
-        return success_response(data=serialize_question_for_client(question_to_return))
+    # One interactive question first: do not launch five speculative LLM graphs.
+    await admit(redis, user_in.id)
+    question = await generate_single_question(user_in.id, request_context=QuestionGenerationRequestContext())
+    if question is None:
+        return not_found_response(message="暂时没有可用题目，请稍后重试或检查词库")
+    await mark_question_served_question(redis, user_in.id, question)
+    background_tasks.add_task(generate_questions_background_task, user_in.id, 1)
+    return success_response(data=serialize_question_for_client(question))
 
 @router.post("/check")
-async def check_answer(question_check_in: QuestionCheck, user_in: User = Depends(get_current_user)):
+@user_action("question-check", identity=lambda args, fingerprint: fingerprint)
+async def check_answer(request: Request, question_check_in: QuestionCheck,
+                       user_in: User = Depends(get_current_user), redis: Redis = Depends(get_redis)):
     precheck_result = precheck_translation_answer(
         question_check_in.target_word,
         question_check_in.chinese_sentence,
@@ -213,6 +159,7 @@ async def check_answer(question_check_in: QuestionCheck, user_in: User = Depends
     if prompt is None:
         logger.warning("检查答案失败：提示词不存在，用户ID=%s 目标词=%s", user_in.id, question_check_in.target_word)
         return not_found_response(message="提示词不存在")
+    await admit(redis, user_in.id)
     try:
         result = await generate_text(prompt)
         logger.info("检查答案成功：用户ID=%s 目标词=%s", user_in.id, question_check_in.target_word)
@@ -222,11 +169,14 @@ async def check_answer(question_check_in: QuestionCheck, user_in: User = Depends
         return internal_server_error_response(message=f"检查失败: {str(e)}", details={"error": str(e)})
     
 @router.post("/answer/{question_id}")
+@user_action("question-answer", identity=lambda args, _: f"{args['answer'].level_id}:{args['question_id']}")
 async def answer_question(
+    request: Request,
     session: SessionDep,
     question_id: int,
     answer: QuestionAnswer,
     user_in: User = Depends(get_current_user),
+    redis: Redis = Depends(get_redis),
 ):
     question = session.get(Question, question_id)
     if not question:

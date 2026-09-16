@@ -25,11 +25,18 @@
       {{ displayedResult?.is_correct ? '✓ 回答正确！解析：' : '✗ 回答有误。解析：' }}
     </p>
     <p class="text-md">{{ displayedExplanation }}</p>
-    <p v-if="displayedCorrectText" class="text-md text-gray-700">正确答案：{{ displayedCorrectText }}</p>
+    <p v-if="displayedCorrectText" class="text-md text-gray-700">
+      正确答案：{{ displayedCorrectText }}
+    </p>
     <p v-if="displayedReviewHint" class="text-sm text-gray-700">
       预计复习：{{ displayedReviewHint }}
     </p>
-    <Button class="self-start mt-2" variant="outline" :disabled="isSubmitting" @click="handleContinue">
+    <Button
+      class="self-start mt-2"
+      variant="outline"
+      :disabled="isSubmitting"
+      @click="handleContinue"
+    >
       {{ isSubmitting ? '下一题准备中...' : '继续' }}
     </Button>
   </Card>
@@ -69,7 +76,9 @@ const questionKey = computed(() => props.question?.id ?? props.question?.questio
 const storyTargetForms = computed<string[]>(() => {
   const forms = props.question?.content?.story_target_forms
   if (Array.isArray(forms) && forms.length > 0) {
-    return forms.filter((form): form is string => typeof form === 'string' && form.trim().length > 0)
+    return forms.filter(
+      (form): form is string => typeof form === 'string' && form.trim().length > 0,
+    )
   }
   if (targetWord.value) {
     return inferHighlightForms(targetWord.value, story.value ?? '')
@@ -150,18 +159,16 @@ const showExplanation = ref(false)
 
 const displayedResult = computed(() => {
   if (props.evaluationMode === 'server') {
-    return props.answerResult as
-      | {
-          is_correct: boolean
-          detail?: {
-            explanation?: string
-            correct_text?: string
-            correct_option?: string
-            target_word?: string
-            next_review_days?: number
-          }
-        }
-      | null
+    return props.answerResult as {
+      is_correct: boolean
+      detail?: {
+        explanation?: string
+        correct_text?: string
+        correct_option?: string
+        target_word?: string
+        next_review_days?: number
+      }
+    } | null
   }
 
   if (!selectedOption.value) return null
@@ -241,7 +248,13 @@ watch(
 watch(
   () => props.answerResult,
   (value) => {
-    if (props.evaluationMode !== 'server' || !value) return
+    if (props.evaluationMode !== 'server') return
+    if (!value) {
+      // An optimistic daily answer can be rolled back after a network error.
+      // Keep the selection/input, but allow the same answer to be submitted again.
+      isAnswered.value = false
+      return
+    }
     const detail = (value as { detail?: Record<string, unknown> }).detail ?? {}
     selectedOption.value =
       typeof detail.selected_option === 'string' && detail.selected_option.trim()

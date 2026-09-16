@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from fastapi.encoders import jsonable_encoder
 from redis.asyncio import Redis
 
@@ -9,7 +9,7 @@ from app.api.api_responses import internal_server_error_response
 from app.api.api_responses import success_response
 from app.api.dependencies import get_current_user
 from app.db.daily_challenge import _build_daily_state
-from app.db.daily_challenge import _now_utc
+from app.db.daily_challenge import _now_utc, get_daily_challenge_window
 from app.db.daily_challenge import advance_daily_run_after_answer
 from app.db.daily_challenge import create_daily_answer_record
 from app.db.daily_challenge import create_daily_run
@@ -30,6 +30,7 @@ from app.models.daily_challenge import DailyChallengeDay
 from app.models.daily_challenge import DailyChallengeRunStatus
 from app.models.user import User
 from app.utils.config import settings
+from app.services.traffic import admit, user_action
 from app.utils.logger import get_logger
 
 router = APIRouter(prefix="/api/daily-challenge", tags=["daily-challenge"])
@@ -39,16 +40,7 @@ logger = get_logger(__name__)
 @router.get("/overview")
 async def get_overview(session: SessionDep, current_user: User = Depends(get_current_user)):
     current_time = _now_utc()
-    day = get_or_create_daily_day(session, current_time)
     overview = get_daily_overview(session, current_user, current_time)
-    active_run = get_daily_run_for_day(session, day.id, current_user.id)
-    if active_run is not None and active_run.status == DailyChallengeRunStatus.IN_PROGRESS:
-        schedule_daily_question_prewarm(
-            day_id=day.id,
-            floor=active_run.current_floor,
-            question_index=active_run.current_question_index,
-            enemy_hp=active_run.current_enemy_hp,
-        )
     logger.info("获取每日挑战概览：用户ID=%s 状态=%s", current_user.id, overview.user_status)
     return success_response(data=jsonable_encoder(overview))
 
@@ -73,7 +65,9 @@ async def get_leaderboard(session: SessionDep, current_user: User = Depends(get_
 
 
 @router.post("/start")
+@user_action("daily-start")
 async def start_daily_challenge(
+    request: Request,
     session: SessionDep,
     redis: Redis = Depends(get_redis),
     current_user: User = Depends(get_current_user),
@@ -88,6 +82,7 @@ async def start_daily_challenge(
 
         floor_question, question = get_current_daily_question_for_run(session, active_run)
         if floor_question is None or question is None:
+            await admit(redis, current_user.id)
             floor_question, question = await ensure_daily_question(
                 session,
                 redis,
@@ -111,6 +106,7 @@ async def start_daily_challenge(
 
         logger.info("恢复每日挑战：用户ID=%s run_id=%s", current_user.id, active_run.id)
         schedule_daily_question_prewarm(
+            user_id=current_user.id,
             day_id=day.id,
             floor=active_run.current_floor,
             question_index=active_run.current_question_index,
@@ -125,6 +121,7 @@ async def start_daily_challenge(
         logger.warning("每日挑战开启失败：今日已结束，用户ID=%s run_id=%s", current_user.id, today_run.id)
         return conflict_response(message="你今天的每日挑战已经结束，请明天再来")
 
+    await admit(redis, current_user.id)
     run = today_run or create_daily_run(session, day, current_user.id, _now_utc())
     floor_question, question = await ensure_daily_question(
         session,
@@ -145,6 +142,7 @@ async def start_daily_challenge(
 
     logger.info("开始每日挑战：用户ID=%s run_id=%s day=%s", current_user.id, run.id, day.day_key)
     schedule_daily_question_prewarm(
+        user_id=current_user.id,
         day_id=day.id,
         floor=run.current_floor,
         question_index=run.current_question_index,
@@ -154,7 +152,9 @@ async def start_daily_challenge(
 
 
 @router.post("/answer")
+@user_action("daily-answer", identity=lambda args, _: f"{get_daily_challenge_window(_now_utc())[0]}:{args['submission'].question_id}")
 async def answer_daily_challenge(
+    request: Request,
     submission: DailyChallengeAnswerSubmit,
     session: SessionDep,
     redis: Redis = Depends(get_redis),
@@ -191,6 +191,9 @@ async def answer_daily_challenge(
         logger.warning("每日挑战作答失败：重复提交，用户ID=%s run_id=%s question_id=%s", current_user.id, run.id, question.id)
         return conflict_response(message="这道题已经提交过了")
 
+    # One bounded progression unit: grading and the immediate next shared question.
+    # Admission precedes all answer mutations, so a 429 never partially submits.
+    await admit(redis, current_user.id)
     judged = await judge_daily_answer(question, submission)
     answered_at = _now_utc()
     create_daily_answer_record(session, run, floor_question, judged, answered_at)

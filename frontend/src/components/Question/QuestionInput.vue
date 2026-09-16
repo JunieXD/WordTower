@@ -8,16 +8,16 @@
     <Textarea
       v-model="userAnswer"
       placeholder="在这里输入你的英文句子..."
-      :disabled="isSubmitting || isAnswered"
+      :disabled="submitting || isAnswered"
     />
     <p v-if="errorMessage" class="text-sm text-red-500">{{ errorMessage }}</p>
     <Button
       class="self-start mt-2"
       variant="outline"
-      :disabled="isSubmitting || isAnswered || !userAnswer.trim()"
+      :disabled="submitting || isAnswered || !userAnswer.trim()"
       @click="handleSubmit"
     >
-      {{ isSubmitting ? '提交中...' : isAnswered ? '已提交' : '提交答案' }}
+      {{ submitting ? '提交中...' : isAnswered ? '已提交' : '提交答案' }}
     </Button>
   </Card>
 
@@ -32,11 +32,18 @@
       }}
       / 100
     </p>
-    <p v-if="displayedCheckResult.feedback" class="text-md">解析：{{ displayedCheckResult.feedback }}</p>
+    <p v-if="displayedCheckResult.feedback" class="text-md">
+      解析：{{ displayedCheckResult.feedback }}
+    </p>
     <p v-if="displayedReferenceAnswer" class="text-md">参考答案：{{ displayedReferenceAnswer }}</p>
     <p v-if="displayBetterTranslation" class="text-md">建议改写：{{ displayBetterTranslation }}</p>
-    <Button class="self-start mt-2" variant="outline" :disabled="isSubmitting" @click="handleContinue">
-      {{ isSubmitting ? '下一题准备中...' : '继续' }}
+    <Button
+      class="self-start mt-2"
+      variant="outline"
+      :disabled="submitting"
+      @click="handleContinue"
+    >
+      {{ submitting ? '下一题准备中...' : '继续' }}
     </Button>
   </Card>
 </template>
@@ -47,6 +54,7 @@ import { computed, ref, watch } from 'vue'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
+import { useUserProfileStore } from '@/stores/userProfile'
 import { useCombatStore } from '@/stores/combat'
 
 const props = defineProps({
@@ -71,13 +79,27 @@ const props = defineProps({
 const emit = defineEmits(['isCorrect', 'continue', 'submit'])
 
 const combatStore = useCombatStore()
+const userProfileStore = useUserProfileStore()
+const draftKey = computed(
+  () => `wordtower:answer-draft:${userProfileStore.profile?.id ?? 'local'}:${questionKey.value}`,
+)
 
 const targetWord = computed(() => props.question?.content?.target_word ?? '')
 const chineseSentence = computed(() => props.question?.content?.chinese_sentence ?? '')
 const referenceAnswer = computed(() => props.question?.content?.reference_answer ?? '')
 const questionKey = computed(() => props.question?.id ?? props.question?.question_id ?? null)
 
+const checking = ref(false)
+const submitting = computed(() => props.isSubmitting || checking.value)
 const userAnswer = ref('')
+watch(userAnswer, (value) => {
+  try {
+    if (value) sessionStorage.setItem(draftKey.value, value)
+    else sessionStorage.removeItem(draftKey.value)
+  } catch {
+    /* Storage can be unavailable in private browsing. */
+  }
+})
 const isAnswered = ref(false)
 const errorMessage = ref('')
 
@@ -129,7 +151,7 @@ const handleContinue = () => {
 }
 
 const handleSubmit = async () => {
-  if (!userAnswer.value.trim() || props.isSubmitting || isAnswered.value) return
+  if (!userAnswer.value.trim() || submitting.value || isAnswered.value) return
 
   if (props.evaluationMode === 'server') {
     emit('submit', { user_input: userAnswer.value.trim() })
@@ -137,6 +159,7 @@ const handleSubmit = async () => {
   }
 
   errorMessage.value = ''
+  checking.value = true
   try {
     const payload = {
       target_word: targetWord.value,
@@ -151,6 +174,11 @@ const handleSubmit = async () => {
       better_translation: raw.better_translation ?? '',
     }
     isAnswered.value = true
+    try {
+      sessionStorage.removeItem(draftKey.value)
+    } catch {
+      /* Optional persistence. */
+    }
     emit('isCorrect', {
       isCorrect: raw.is_correct,
       answerDetail: {
@@ -163,25 +191,44 @@ const handleSubmit = async () => {
     })
   } catch (error) {
     console.error('检查答案失败:', error)
-    errorMessage.value = '检查答案失败，请稍后重试'
+    errorMessage.value =
+      error instanceof Error ? error.message : '暂时无法批改，答案已保留，请稍后重试'
+  } finally {
+    checking.value = false
   }
 }
 
 watch(
   () => questionKey.value,
   () => {
-    userAnswer.value = ''
+    try {
+      userAnswer.value = sessionStorage.getItem(draftKey.value) ?? ''
+    } catch {
+      userAnswer.value = ''
+    }
     isAnswered.value = false
     errorMessage.value = ''
     checkResult.value = null
   },
+  { immediate: true },
 )
 
 watch(
   () => props.answerResult,
   (value) => {
-    if (props.evaluationMode !== 'server' || !value) return
+    if (props.evaluationMode !== 'server') return
+    if (!value) {
+      // An optimistic daily answer can be rolled back after a network error.
+      // Keep the selection/input, but allow the same answer to be submitted again.
+      isAnswered.value = false
+      return
+    }
     isAnswered.value = true
+    try {
+      sessionStorage.removeItem(draftKey.value)
+    } catch {
+      /* Optional persistence. */
+    }
   },
   { immediate: true },
 )

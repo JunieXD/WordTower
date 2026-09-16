@@ -1,4 +1,7 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
+from redis.asyncio import Redis
+from app.db.redis import get_redis
+from app.services.traffic import user_action
 from app.api.api_responses import success_response, conflict_response, internal_server_error_response, not_found_response
 from app.db.database import SessionDep
 from app.db.challenge import (
@@ -21,7 +24,8 @@ router = APIRouter(prefix="/api/combat", tags=["combat"])
 logger = get_logger(__name__)
 
 @router.post("/start")
-def start_combat(session: SessionDep, user_in: User = Depends(get_current_user)):
+@user_action("combat-start")
+def start_combat(request: Request, session: SessionDep, user_in: User = Depends(get_current_user), redis: Redis = Depends(get_redis)):
     challenge = current_challenge(session, user_in)
     if not challenge:
         challenge = new_challenge(session, user_in, new_level(session, 1))
@@ -46,7 +50,8 @@ def start_combat(session: SessionDep, user_in: User = Depends(get_current_user))
     return success_response(data=combat_data)
 
 @router.post("/end")
-def end_combat(session: SessionDep, end_challenge_in: EndChallenge, user_in: User = Depends(get_current_user)):
+@user_action("combat-end")
+def end_combat(request: Request, session: SessionDep, end_challenge_in: EndChallenge, user_in: User = Depends(get_current_user), redis: Redis = Depends(get_redis)):
     challenge = current_challenge(session, user_in)
     if not challenge:
         logger.warning("结束战斗失败：无进行中的挑战，用户ID=%s", user_in.id)

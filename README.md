@@ -1,145 +1,124 @@
-# WordTower
+<p align="center">
+  <img src="docs/assets/banner.svg" alt="WordTower — 把每一个单词，变成向上的力量" width="100%" />
+</p>
 
-WordTower is a monorepo containing a Vue frontend and a FastAPI backend. Production runs as a Docker Compose application behind the host OpenResty instance.
+<p align="center">
+  <a href="https://github.com/JunieXD/WordTower/actions/workflows/deploy.yml"><img src="https://github.com/JunieXD/WordTower/actions/workflows/deploy.yml/badge.svg" alt="Test, Build and Deploy" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-e7bd70?style=flat-square" alt="MIT License" /></a>
+  <img src="https://img.shields.io/badge/Vue-3-42b883?style=flat-square&amp;logo=vuedotjs&amp;logoColor=white" alt="Vue 3" />
+  <img src="https://img.shields.io/badge/FastAPI-Python-009688?style=flat-square&amp;logo=fastapi&amp;logoColor=white" alt="FastAPI" />
+  <img src="https://img.shields.io/badge/PWA-ready-8b6ac8?style=flat-square" alt="PWA ready" />
+</p>
 
-## Repository layout
+<p align="center">
+  <b>在故事里理解单词，在战斗中积累成长。</b><br />
+  一个融合英语学习、像素风闯塔与 AI 出题的开源 Web 应用。
+</p>
+
+<p align="center">
+  <a href="https://wt.juniexd.cn">在线体验</a> ·
+  <a href="#玩法与功能">探索玩法</a> ·
+  <a href="#本地启动">本地启动</a> ·
+  <a href="docs/deployment.md">部署文档</a> ·
+  <a href="CONTRIBUTING.md">参与贡献</a>
+</p>
+
+---
+
+## 玩法与功能
+
+选择适合自己的词库，阅读语境、组织句子、完成翻译。每一次作答都会推动战斗：击败敌人、向更高楼层前进，并积累用于角色成长的经验与金币。
+
+| 学习方式 | 游戏体验 |
+| --- | --- |
+| **语境猜词** · 在短篇故事中理解词义 | **普通闯塔** · 答题战斗、逐层挑战、角色升级 |
+| **完形填空** · 在句子中练习词汇搭配 | **每日挑战** · 共享题目路线，每天一次机会 |
+| **关键词翻译** · 输出英文，获得 AI 批改反馈 | **好友与排行** · 查看好友动态、聊天、比较成绩 |
+| **自选词库与作答历史** · 按目标学习，回看题目与答案 | **移动端与 PWA** · 适配手机，可添加到主屏幕 |
+
+<p align="center">
+  <img src="frontend/src/assets/character/Elf/Idle.gif" height="112" alt="精灵角色待机动画" />
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="frontend/src/assets/character/DemonKin/Idle.gif" height="112" alt="敌人角色待机动画" />
+</p>
+
+### 好好答题，不必和网络较劲
+
+网络抖动后的重试会复用同一次操作，避免重复出题或重复提交。短时请求密集时会显示温和的等待提示，并保留当前内容。后台预生成给当前作答留出容量；持续正常刷题没有每日题数上限。
+
+实现细节与可调参数见 [请求频率与网络恢复](docs/traffic-protection.md)。
+
+## 技术栈
+
+| 层次 | 选型 |
+| --- | --- |
+| 前端 | Vue 3 · TypeScript · Vite · Pinia · Tailwind CSS · GSAP |
+| 后端 | FastAPI · SQLModel · Alembic · Python 3.12+ |
+| 数据与协调 | PostgreSQL · Redis |
+| AI 出题与批改 | LangGraph · OpenAI 兼容 SDK · ECNU `ecnu-plus` |
+| 交付 | Docker Compose · OpenResty · GHCR · GitHub Actions |
 
 ```text
-frontend/               Vue, Vite and the frontend OpenResty image
-backend/                FastAPI, Alembic and the backend image
-deploy/openresty/       Host OpenResty reverse-proxy example
-deploy/server/          Release and database backup scripts
-.github/workflows/      Tests, GHCR image builds and production deployment
-compose.yaml            Local and production service topology
+frontend/       界面、战斗动画、状态管理与 PWA
+backend/        API、出题流程、数据模型与测试
+deploy/         反向代理、部署与备份脚本
+docs/           运维、频率保护与第三方许可说明
 ```
 
-## Local development
+## 本地启动
 
-Run PostgreSQL and Redis locally, then start each application with its native toolchain:
+准备 Node.js **20.19+ 或 22.12+**、Python **3.12+**、[uv](https://docs.astral.sh/uv/)、PostgreSQL 和 Redis。应用需要可用的 ECNU API Key；实际模型调用会消耗该账号的额度。
+
+### 1. 克隆与配置
+
+```bash
+git clone https://github.com/JunieXD/WordTower.git
+cd WordTower
+cp backend/.env.example backend/.env
+```
+
+编辑 `backend/.env`，设置 `DATABASE_URL`、`REDIS_URL`、`SECRET_KEY` 和 `ECNU_API_KEY`。先在 PostgreSQL 创建 `wordtower` 数据库。默认模型为 `ecnu-plus`，默认不启用 SRS。
+
+### 2. 启动后端
 
 ```bash
 cd backend
-cp .env.example .env
 uv sync --frozen
 uv run alembic -c app/alembic.ini upgrade head
 uv run uvicorn app.main:app --reload
 ```
 
+API 默认位于 `http://localhost:8000`，交互文档位于 `http://localhost:8000/docs`。
+
+首次使用需要导入词典并建立词库，步骤见 [后端开发说明](backend/README.md#导入词库)。
+
+### 3. 启动前端
+
+在另一个终端中运行：
+
 ```bash
-cd frontend
+cd WordTower/frontend
 npm ci
 npm run dev
 ```
 
-The production Compose file expects externally managed PostgreSQL and Redis services. To run it outside 1Panel, provide an external Docker network and reachable `postgresql` and `redis` hosts in `.env`. The application is then available at `http://127.0.0.1:8080`. SRS is disabled by default and the backend has no PyTorch dependency.
+打开 Vite 输出的本地地址，注册账号、选择词库后开始挑战。
 
-## Production topology
+## 测试与部署
 
-The host OpenResty instance terminates HTTPS and proxies the site to `127.0.0.1:8080`. The Compose frontend is also based on OpenResty; it serves the Vue assets and sends `/api/*` to FastAPI. The backend and one-shot migration container join both the private application network and 1Panel's external `1panel-network`. They reach the 1Panel-managed services through the stable Docker aliases `postgresql` and `redis`; WordTower does not run its own database or Redis containers.
-
-Copy the location block from `deploy/openresty/wordtower.location.conf.example` into the HTTPS site managed by OpenResty or 1Panel.
-
-## First server setup
-
-The deployment user must have Docker Compose v2 access and write permission to `/opt/1panel/www/sites/WordTower` (or the path configured in the GitHub `DEPLOY_PATH` variable). PostgreSQL and Redis must already be managed by 1Panel and attached to `1panel-network` with the aliases `postgresql` and `redis`. Manual SQL backups are stored below the WordTower directory so they can be included in a site snapshot; the live database files remain under the 1Panel PostgreSQL application directory.
-
-1. Install PostgreSQL and Redis through 1Panel and confirm both services are on `1panel-network`.
-2. Create the deployment directory and place `.env.example` there as `.env`.
-3. Set the PostgreSQL host, port, database, user and URL-safe password. Set `REDIS_URL` to the 1Panel Redis alias and include its URL-encoded password when Redis authentication is enabled.
-4. Replace the remaining placeholders, especially `SECRET_KEY` and `ECNU_API_KEY`, and set `COOKIE_SECURE=true` for HTTPS.
-5. Configure the OpenResty location block and point DNS to the server.
-6. Configure the GitHub production environment described below, then push `main`. The workflow logs the server into GHCR with its temporary GitHub token during each deployment.
-
-Do not commit the production `.env` file.
-
-## ECNU LLM configuration and migration
-
-WordTower uses `ecnu-plus` through the university's OpenAI-compatible API.
-Set these values in `backend/.env` for local development, or the deployment
-directory's `.env` for Docker:
-
-```dotenv
-ECNU_API_KEY=<your-school-api-key>
-ECNU_API_BASE_URL=https://chat.ecnu.edu.cn/open/api/v1
-ECNU_API_MODEL_ID=ecnu-plus
-ECNU_MAX_CONCURRENCY=3
-```
-
-Only the key is required; the remaining values above are the defaults. Remove
-the old `ARK_API_KEY`, `ARK_API_BASE_URL` and `ARK_API_MODEL_ID` entries after
-migration. They are no longer read and there is no fallback to Volcengine.
-
-Update the server `.env` **before** deploying this release. CI/CD uploads
-`.env.example`, preserves `.env`, and checks required configuration before
-changing image tags or running migrations. If the key is missing, the release
-stops and the running application stays on its previous version. After fixing
-`.env`, rerun the failed GitHub Actions deployment. For an already deployed
-version, apply environment changes with `docker compose up -d --force-recreate backend`
-from the deployment directory; `docker compose restart` does not reload
-environment variables.
-
-The [model documentation](https://developer.ecnu.edu.cn/vitepress/llm/model.html)
-and [quota documentation](https://developer.ecnu.edu.cn/vitepress/llm/limit.html)
-currently specify at most three simultaneous requests per user and model.
-Generation, review, prewarming and grading share a process-wide queue, with a
-20-second queue wait limit and one SDK retry for transient failures (including
-429). Production explicitly runs one Uvicorn worker. Keep one backend replica;
-multiple replicas or workers require a shared distributed limiter. If the same
-school account is used by other applications, reduce `ECNU_MAX_CONCURRENCY`
-(allowed range: 1–3) to leave capacity for them. The quota is shared across that
-account, so this application cannot reserve capacity against external callers.
-
-All calls disable thinking, cap output at 2048 tokens, and request
-`response_format={"type":"json_object"}` using ECNU's
-[structured output API](https://developer.ecnu.edu.cn/vitepress/llm/api/structuredoutput.html).
-This enforces JSON syntax for the different generation stages; field and
-semantic checks remain in the existing question workflows. Empty, truncated
-or otherwise incomplete replies are rejected and retried once.
-
-Run a real API smoke test (consumes a small amount of the account's quota):
+前端执行 `npm run type-check`、`npm run test:unit -- --run` 和 `npm run build-only`；后端执行：
 
 ```bash
 cd backend
-uv run python -m app.test.test_LLM
+ECNU_API_KEY=test-key-not-used-by-unit-tests uv run --frozen python -m unittest discover -s app/test -p 'test_*.py'
 ```
 
-## GitHub deployment settings
+单元测试不调用真实模型。Pull Request 自动运行检查；推送 `main` 后，GitHub Actions 构建带提交 SHA 标签的前后端镜像，并部署到生产环境。部署健康检查失败时尝试回退到之前的应用镜像。
 
-Create a GitHub environment named `production` and configure:
+生产 Compose 使用外部 PostgreSQL、Redis 与 `1panel-network`，不是一条命令启动所有依赖的本地开发环境。完整配置、ECNU 额度说明、备份与迁移步骤见 [部署与运维](docs/deployment.md)。
 
-| Kind | Name | Value |
-| --- | --- | --- |
-| Secret | `DEPLOY_HOST` | Server IP or hostname |
-| Secret | `DEPLOY_PORT` | SSH port, normally `22` |
-| Secret | `DEPLOY_USER` | SSH deployment user |
-| Secret | `DEPLOY_SSH_KEY` | Private Ed25519 SSH key |
-| Secret | `DEPLOY_KNOWN_HOSTS` | Output of `ssh-keyscan -p <port> -H <host>` |
-| Variable | `DEPLOY_PATH` | Optional; defaults to `/opt/1panel/www/sites/WordTower` |
+## 参与与许可
 
-Every push to `main` runs frontend and backend tests and pushes both commit-SHA images to GHCR. It then uploads the deployment files and executes `deploy/server/deploy.sh`. The same release can be started manually with `workflow_dispatch`. A failed health check restores the previous application image tag.
+欢迎通过 [Issues](https://github.com/JunieXD/WordTower/issues) 反馈体验、报告问题，或提交 Pull Request。开始前请阅读 [贡献指南](CONTRIBUTING.md)。
 
-## Backups and moving servers
-
-Run database backups from the deployment directory:
-
-```bash
-./deploy/server/backup.sh
-```
-
-Copy the resulting `backups/*.sql.gz` file and the production `.env` to storage outside the server. A WordTower site snapshot does not contain the live 1Panel PostgreSQL data directory, so create a manual SQL backup before a snapshot that must be independently restorable.
-
-Restore a dump on the destination server before switching traffic:
-
-```bash
-./deploy/server/restore.sh /absolute/path/to/wordtower.sql.gz
-```
-
-To move to a new server:
-
-1. Install Docker Compose v2 and OpenResty/1Panel.
-2. Install PostgreSQL and Redis in 1Panel and recreate the database user recorded in `.env`.
-3. Recreate the deployment directory and `.env`, then restore the latest SQL dump before opening traffic.
-4. Copy the OpenResty location configuration and update DNS.
-5. Update `DEPLOY_HOST` and `DEPLOY_KNOWN_HOSTS` in GitHub, then rerun the latest workflow or push `main`.
-
-Database restoration is intentionally a manual operation because it replaces persistent data. For a new empty database, the deployment workflow applies all Alembic migrations automatically.
+WordTower 原创代码采用 [MIT License](LICENSE)。第三方代码、词典与美术素材保留各自许可，详见 [第三方说明](THIRD_PARTY_NOTICES.md)。感谢所有贡献者，以及 Vue、FastAPI、ECDICT 等开源项目。

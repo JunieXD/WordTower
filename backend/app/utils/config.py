@@ -168,6 +168,13 @@ class Settings:
     SRS_ENABLED: bool = _parse_bool(os.getenv("SRS_ENABLED"), False)
     SRS_TARGET_RECALL: float = _parse_float(os.getenv("SRS_TARGET_RECALL"), 0.8)
 
+    # Per-user burst protection; no daily quota or permanent bans.
+    TRAFFIC_BURST: int = _parse_int(os.getenv("TRAFFIC_BURST"), 8)
+    TRAFFIC_REFILL_SECONDS: float = _parse_float(os.getenv("TRAFFIC_REFILL_SECONDS"), 3.0)
+    TRAFFIC_COOLDOWN_SECONDS: int = _parse_int(os.getenv("TRAFFIC_COOLDOWN_SECONDS"), 15)
+    if TRAFFIC_BURST < 3 or TRAFFIC_REFILL_SECONDS <= 0 or TRAFFIC_COOLDOWN_SECONDS < 1:
+        raise ValueError("Invalid traffic protection settings")
+
     # ==================== HTTP / 运行环境 ====================
     COOKIE_SECURE: bool = _parse_bool(os.getenv("COOKIE_SECURE"), False)
     DB_POOL_SIZE: int = _parse_int(os.getenv("DB_POOL_SIZE"), 5)

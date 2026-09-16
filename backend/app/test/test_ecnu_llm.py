@@ -24,6 +24,35 @@ class ECNUCallTests(unittest.IsolatedAsyncioTestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
 
+    async def test_background_requests_leave_slots_for_interactive_work(self):
+        from app.services.work_priority import background_work
+        active_background = peak_background = 0
+        started, release = asyncio.Event(), asyncio.Event()
+        async def create(**kwargs):
+            nonlocal active_background, peak_background
+            prompt = kwargs["messages"][1]["content"]
+            if prompt == "background":
+                active_background += 1
+                peak_background = max(peak_background, active_background)
+                started.set()
+                await release.wait()
+                active_background -= 1
+            return completion()
+        async def background():
+            with background_work():
+                return await LLM.generate_text("background")
+        with patch.object(LLM, "_background_slots", asyncio.Semaphore(1)), \
+             patch.object(LLM.client.chat.completions, "create", side_effect=create):
+            tasks = [asyncio.create_task(background()) for _ in range(3)]
+            try:
+                await asyncio.wait_for(started.wait(), 1)
+                result = await asyncio.wait_for(LLM.generate_text("interactive"), 1)
+                self.assertEqual(result, {"ok": True})
+            finally:
+                release.set()
+                await asyncio.gather(*tasks)
+        self.assertEqual(peak_background, 1)
+
     async def test_shared_limit_queues_burst_and_releases_after_completion(self):
         active = peak = 0
         full = asyncio.Event()

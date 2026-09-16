@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import request from '@/utils/request'
+import { reliableRequest } from '@/utils/reliableRequest'
 import { ref } from 'vue'
 
 export interface CombatInfo {
@@ -79,8 +80,7 @@ export const useCombatStore = defineStore('combat', () => {
   const checkoutInfo = ref<CheckoutInfo | null>(null)
 
   async function fetchQuestion() {
-    currentQuestion.value = null
-    const questionRes = await request.get('/api/question/get', { timeout: 30000 })
+    const questionRes = await reliableRequest({ method: 'get', url: '/api/question/get' })
     currentQuestion.value = questionRes.data.data as Question
   }
 
@@ -95,7 +95,7 @@ export const useCombatStore = defineStore('combat', () => {
     chinese_sentence: string
     user_input: string
   }): Promise<QuestionCheckResult> {
-    const res = await request.post('/api/question/check', payload, { timeout: 30000 })
+    const res = await reliableRequest({ method: 'post', url: '/api/question/check', data: payload })
     return res.data.data as QuestionCheckResult
   }
 
@@ -104,16 +104,20 @@ export const useCombatStore = defineStore('combat', () => {
     isCorrect: boolean,
     answerDetail?: AnswerDetail,
   ): Promise<AnswerQuestionMeta | null> {
-    const res = await request.post(`/api/question/answer/${questionId}`, {
-      level_id: combatInfo.value?.level_id,
-      is_correct: isCorrect,
-      answer_detail: answerDetail ?? null,
+    const res = await reliableRequest({
+      method: 'post',
+      url: `/api/question/answer/${questionId}`,
+      data: {
+        level_id: combatInfo.value?.level_id,
+        is_correct: isCorrect,
+        answer_detail: answerDetail ?? null,
+      },
     })
     return (res.data?.data ?? null) as AnswerQuestionMeta | null
   }
 
   async function StartCombat() {
-    const res = await request.post('/api/combat/start')
+    const res = await reliableRequest({ method: 'post', url: '/api/combat/start' })
     combatInfo.value = res.data.data as CombatInfo
   }
 
@@ -130,11 +134,15 @@ export const useCombatStore = defineStore('combat', () => {
   async function CompleteCombat() {
     const rewards = calculateRewards()
 
-    const res = await request.post('/api/combat/end', {
-      next: true,
-      end_hp: combatInfo.value?.player_hp,
-      exp_gained: rewards.exp,
-      coins_gained: rewards.coins,
+    const res = await reliableRequest({
+      method: 'post',
+      url: '/api/combat/end',
+      data: {
+        next: true,
+        end_hp: combatInfo.value?.player_hp,
+        exp_gained: rewards.exp,
+        coins_gained: rewards.coins,
+      },
     })
 
     if (combatInfo.value && res.data.data?.level_id) {
@@ -144,11 +152,15 @@ export const useCombatStore = defineStore('combat', () => {
 
   // 结束闯塔（玩家死亡）
   async function EndCombat() {
-    await request.post('/api/combat/end', {
-      next: false,
-      end_hp: combatInfo.value?.player_hp,
-      exp_gained: 0,
-      coins_gained: 0,
+    await reliableRequest({
+      method: 'post',
+      url: '/api/combat/end',
+      data: {
+        next: false,
+        end_hp: combatInfo.value?.player_hp,
+        exp_gained: 0,
+        coins_gained: 0,
+      },
     })
 
     await fetchCheckoutInfo()
